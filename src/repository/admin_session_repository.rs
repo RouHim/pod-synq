@@ -94,6 +94,6 @@ impl AdminSessionRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(_result.get_unchecked::<i64, _>(0).as_i64() > 0)
+        Ok(_result.get_unchecked::<i64, _>(0) > 0)
     }
 }

@@ -20,7 +20,7 @@ impl SubscriptionService {
             .list_by_device(user_id, device_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        subs.iter().map(|s| s.podcast_url.clone()).collect()
+        Ok(subs)
     }
 
     pub async fn add_subscription(
@@ -65,13 +65,14 @@ impl SubscriptionService {
         device_id: i64,
         changes: SubscriptionChanges,
     ) -> AppResult<()> {
+        let count = changes.add.len() + changes.remove.len();
         self.sub_repo
-            .upload(user_id, device_id, changes)
+            .apply_changes(user_id, device_id, changes)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         tracing::info!(
             "Uploaded {} subscription changes for device {}",
-            changes.add.len() + changes.remove.len(),
+            count,
             device_id,
         );
         Ok(())
@@ -82,9 +83,10 @@ impl SubscriptionService {
         user_id: i64,
         device_id: Option<i64>,
     ) -> AppResult<i64> {
-        self.sub_repo
+        Ok(self
+            .sub_repo
             .count(user_id, device_id)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .map_err(|e| AppError::Internal(e.to_string()))?)
     }
 }

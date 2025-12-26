@@ -7,7 +7,7 @@ use crate::state::AppState;
 pub fn create_routes(
     auth_service: AuthService,
     state: AppState,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl Filter<Extract = impl warp::Reply, Error = std::convert::Infallible> + Clone {
     let state_filter = warp::any().map(move || state.clone());
 
     let auth_filter = with_auth(auth_service.clone());

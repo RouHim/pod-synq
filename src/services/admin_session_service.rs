@@ -48,11 +48,9 @@ impl AdminSessionService {
         Ok(())
     }
 
-    pub async fn cleanup_expired_sessions(&self) -> AppResult<i64> {
-        let count = self.session_repo.cleanup_expired().await?;
-        if count > 0 {
-            tracing::info!("Cleaned up {} expired sessions", count);
-        }
-        Ok(count)
+    pub async fn cleanup_expired_sessions(&self) -> AppResult<()> {
+        self.session_repo.cleanup_expired().await?;
+        tracing::info!("Cleaned up expired sessions");
+        Ok(())
     }
 }

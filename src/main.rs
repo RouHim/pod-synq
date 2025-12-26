@@ -115,6 +115,6 @@ async fn initialize_admin_user(state: &AppState, config: &Config) -> anyhow::Res
 fn create_app(
     auth_service: AuthService,
     state: AppState,
-) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+) -> impl warp::Filter<Extract = impl warp::Reply, Error = std::convert::Infallible> + Clone {
     crate::routes::create_routes(auth_service, state)
 }

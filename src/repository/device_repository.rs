@@ -32,15 +32,7 @@ impl DeviceRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(Device {
-            id: result.get_unchecked::<i64, _>(0),
-            user_id: result.get_unchecked::<i64, _>(1),
-            device_id: result.get_unchecked::<&str, _>(2).to_string(),
-            caption: result.get_unchecked::<Option<String>, _>(3),
-            r#type: result.get_unchecked::<Option<String>, _>(4),
-            created_at: result.get_unchecked(5),
-            updated_at: result.get_unchecked::<i64, _>(6),
-        })
+        Ok(result.get_unchecked::<i64, _>(0))
     }
 
     pub async fn find_by_id(&self, id: i64) -> Result<Option<Device>, sqlx::Error> {

@@ -77,17 +77,17 @@ impl EpisodeActionRepository {
 
         let mut bind_count = 1;
 
-        if let Some(_since) = query.since {
+        if let Some(ref _since) = query.since {
             bind_count += 1;
             sql.push_str(&format!("AND timestamp >= ${}", bind_count));
         }
 
-        if let Some(_podcast) = query.podcast {
+        if let Some(ref _podcast) = query.podcast {
             bind_count += 1;
             sql.push_str(&format!("AND podcast_url = ${}", bind_count));
         }
 
-        if let Some(_device) = query.device {
+        if let Some(ref _device) = query.device {
             bind_count += 1;
             sql.push_str(&format!("AND device_id = ${}", bind_count));
         }

@@ -1,4 +1,8 @@
-use crate::{error::AppError, models::User, repository::UserRepository};
+use crate::{
+    error::{AppError, AppResult},
+    repository::UserRepository,
+};
+use argon2::PasswordVerifier;
 
 #[derive(Clone)]
 pub struct UserService {
@@ -24,17 +28,27 @@ impl UserService {
     }
 
     pub async fn verify_credentials(&self, username: &str, password: &str) -> AppResult<i64> {
-        self.user_repo
-            .find_by_username(username, password)
+        let user = self
+            .user_repo
+            .find_by_username(username)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or(AppError::Authentication)?;
+
+        let user_service = UserService::new(self.user_repo.clone());
+        user_service.verify_password(&user.password_hash, password)?;
+
+        Ok(user.id)
     }
 
     pub async fn get_user(&self, id: i64) -> AppResult<crate::models::User> {
-        self.user_repo
+        let user = self
+            .user_repo
             .find_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or(AppError::UserNotFound)?;
+        Ok(user)
     }
 
     pub async fn reset_password(&self, id: i64, new_password: &str) -> AppResult<()> {
@@ -55,24 +69,37 @@ impl UserService {
     }
 
     pub async fn list_users(&self) -> AppResult<Vec<crate::models::User>> {
-        self.user_repo
+        Ok(self
+            .user_repo
             .list_all()
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .map_err(|e| AppError::Internal(e.to_string()))?)
     }
 
     pub async fn count(&self) -> AppResult<i64> {
-        self.user_repo
+        Ok(self
+            .user_repo
             .count()
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .map_err(|e| AppError::Internal(e.to_string()))?)
     }
 
     pub async fn is_empty(&self) -> AppResult<bool> {
-        self.user_repo
+        Ok(self
+            .user_repo
             .is_empty()
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
+            .map_err(|e| AppError::Internal(e.to_string()))?)
+    }
+
+    pub fn verify_password(&self, password_hash: &str, password: &str) -> AppResult<()> {
+        let parsed_hash = argon2::PasswordHash::new(password_hash)
+            .map_err(|_| AppError::Internal("Invalid password hash format".to_string()))?;
+
+        argon2::Argon2::default()
+            .verify_password(password.as_bytes(), &parsed_hash)
+            .map_err(|_| AppError::Authentication)?;
+        Ok(())
     }
 
     pub async fn initialize_admin_if_needed(

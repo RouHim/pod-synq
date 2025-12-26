@@ -63,8 +63,8 @@ pub async fn upload_subscriptions(
         .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
 
     let changes = SubscriptionChanges {
-        add: req.add.as_deref().unwrap_or_default(),
-        remove: req.remove.as_deref().unwrap_or_default(),
+        add: req.add.as_deref().unwrap_or_default().to_vec(),
+        remove: req.remove.as_deref().unwrap_or_default().to_vec(),
         timestamp: req
             .timestamp
             .unwrap_or_else(|| chrono::Utc::now().timestamp()),

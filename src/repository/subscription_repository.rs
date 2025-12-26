@@ -1,4 +1,3 @@
-use crate::models::Subscription;
 use sqlx::{Error, Row, SqlitePool};
 
 #[derive(Clone)]
@@ -25,14 +24,7 @@ impl SubscriptionRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(Subscription {
-            id: result.get_unchecked::<i64, _>(0),
-            user_id: result.get_unchecked::<i64, _>(1),
-            device_id: result.get_unchecked::<i64, _>(2),
-            podcast_url: result.get_unchecked::<&str, _>(3).to_string(),
-            added_at: result.get_unchecked::<i64, _>(4),
-            removed_at: result.get_unchecked::<Option<i64>, _>(5),
-        })
+        Ok(result.get_unchecked::<i64, _>(0))
     }
 
     pub async fn remove(
@@ -41,28 +33,20 @@ impl SubscriptionRepository {
         device_id: i64,
         podcast_url: &str,
     ) -> Result<(), Error> {
-        let result = sqlx::query(
+        sqlx::query(
             r#"
             UPDATE subscriptions 
             SET removed_at = strftime('%s', 'now')
             WHERE user_id = ? AND device_id = ? AND podcast_url = ? AND removed_at IS NULL
-            RETURNING id, user_id, device_id, podcast_url, added_at, removed_at
             "#,
         )
         .bind(user_id)
         .bind(device_id)
         .bind(podcast_url)
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await?;
 
-        Ok(Subscription {
-            id: result.get_unchecked::<i64, _>(0),
-            user_id: result.get_unchecked::<i64, _>(1),
-            device_id: result.get_unchecked::<i64, _>(2),
-            podcast_url: result.get_unchecked::<&str, _>(3).to_string(),
-            added_at: result.get_unchecked::<i64, _>(4),
-            removed_at: result.get_unchecked::<Option<i64>, _>(5),
-        })
+        Ok(())
     }
 
     pub async fn list_by_device(

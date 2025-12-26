@@ -77,7 +77,7 @@ pub async fn update_device(
             req.device_type.as_deref(),
         )
         .await
-        .map_err(|e| warp::reject::custom(e.into()))?;
+        .map_err(|e| warp::reject::custom(e))?;
 
     tracing::info!(
         "Device {} (ID: {}) updated for user {}",
