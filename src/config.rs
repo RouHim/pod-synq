@@ -4,6 +4,7 @@ use std::env;
 pub struct Config {
     pub port: u16,
     pub db_path: String,
+    pub base_url: String,
     pub admin_username: Option<String>,
     pub admin_password: Option<String>,
     pub log_level: String,
@@ -18,6 +19,9 @@ impl Config {
 
         let db_path = env::var("PODSYNQ_DB_PATH").unwrap_or_else(|_| "./pod-synq.db".to_string());
 
+        let base_url =
+            env::var("PODSYNQ_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+
         let admin_username = env::var("PODSYNQ_ADMIN_USERNAME").ok();
         let admin_password = env::var("PODSYNQ_ADMIN_PASSWORD").ok();
 
@@ -26,6 +30,7 @@ impl Config {
         Ok(Self {
             port,
             db_path,
+            base_url,
             admin_username,
             admin_password,
             log_level,

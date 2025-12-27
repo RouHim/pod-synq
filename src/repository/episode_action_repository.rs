@@ -1,9 +1,27 @@
 use crate::models::{EpisodeAction, EpisodeActionQuery};
-use sqlx::SqlitePool;
+use serde::Serialize;
+use sqlx::{FromRow, SqlitePool};
 
 #[derive(Clone)]
 pub struct EpisodeActionRepository {
     pool: SqlitePool,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct EpisodeActionWithDevice {
+    pub id: i64,
+    pub user_id: i64,
+    #[sqlx(rename = "device_id_fk")]
+    pub device_id_fk: i64,
+    pub device: String,
+    pub podcast_url: String,
+    pub episode_url: String,
+    pub action: String,
+    pub timestamp: i64,
+    pub started: Option<i64>,
+    pub position: Option<i64>,
+    pub total: Option<i64>,
+    pub created_at: i64,
 }
 
 impl EpisodeActionRepository {
@@ -15,37 +33,34 @@ impl EpisodeActionRepository {
         &self,
         user_id: i64,
         query: EpisodeActionQuery,
-    ) -> Result<Vec<EpisodeAction>, sqlx::Error> {
+    ) -> Result<Vec<EpisodeActionWithDevice>, sqlx::Error> {
         let mut sql = String::from(
             r#"
-            SELECT 
-                id, user_id, device_id, podcast_url, episode_url, action, 
-                timestamp, started, position, total, created_at
-            FROM episode_actions 
-            WHERE user_id = ?
+            SELECT
+                ea.id, ea.user_id, ea.device_id as device_id_fk, d.device_id as device,
+                ea.podcast_url, ea.episode_url, ea.action,
+                ea.timestamp, ea.started, ea.position, ea.total, ea.created_at
+            FROM episode_actions ea
+            INNER JOIN devices d ON ea.device_id = d.id
+            WHERE ea.user_id = ?
             "#,
         );
 
-        let mut bind_count = 1;
-
-        if let Some(ref _since) = query.since {
-            bind_count += 1;
-            sql.push_str(&format!("AND timestamp >= ${}", bind_count));
+        if query.since.is_some() {
+            sql.push_str(" AND ea.timestamp >= ? ");
         }
 
-        if let Some(ref _podcast) = query.podcast {
-            bind_count += 1;
-            sql.push_str(&format!("AND podcast_url = ${}", bind_count));
+        if query.podcast.is_some() {
+            sql.push_str(" AND ea.podcast_url = ? ");
         }
 
-        if let Some(ref _device) = query.device {
-            bind_count += 1;
-            sql.push_str(&format!("AND device_id = ${}", bind_count));
+        if query.device.is_some() {
+            sql.push_str(" AND d.device_id = ? ");
         }
 
-        sql.push_str("ORDER BY timestamp DESC");
+        sql.push_str(" ORDER BY ea.timestamp DESC");
 
-        let mut q = sqlx::query_as::<_, EpisodeAction>(&sql);
+        let mut q = sqlx::query_as::<_, EpisodeActionWithDevice>(&sql);
         q = q.bind(user_id);
 
         if let Some(since) = query.since {
@@ -69,9 +84,9 @@ impl EpisodeActionRepository {
         for action in actions {
             sqlx::query(
                 r#"
-                INSERT INTO episode_actions 
+                INSERT INTO episode_actions
                 (user_id, device_id, podcast_url, episode_url, action, timestamp, started, position, total)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#
             )
             .bind(action.user_id)

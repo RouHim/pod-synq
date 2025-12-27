@@ -7,6 +7,7 @@ mod repository;
 mod routes;
 mod services;
 mod state;
+mod utils;
 
 use sqlx::SqlitePool;
 use std::path::Path;
@@ -33,11 +34,11 @@ async fn main() -> anyhow::Result<()> {
     run_migrations(&pool).await?;
 
     let state = AppState::new(pool.clone());
-    let auth_service = AuthService::new(state.user_service.clone());
+    let auth_service = AuthService::new(state.user_service.clone(), state.session_service.clone());
 
     initialize_admin_user(&state, &config).await?;
 
-    let routes = create_app(auth_service, state);
+    let routes = create_app(auth_service, state, config.clone());
 
     let addr = ([0, 0, 0, 0], config.port);
     tracing::info!("Server listening on http://0.0.0.0:{}", config.port);
@@ -115,6 +116,7 @@ async fn initialize_admin_user(state: &AppState, config: &Config) -> anyhow::Res
 fn create_app(
     auth_service: AuthService,
     state: AppState,
+    config: Config,
 ) -> impl warp::Filter<Extract = impl warp::Reply, Error = std::convert::Infallible> + Clone {
-    crate::routes::create_routes(auth_service, state)
+    crate::routes::create_routes(auth_service, state, config)
 }

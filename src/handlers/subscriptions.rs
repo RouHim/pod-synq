@@ -16,6 +16,8 @@ pub struct SubscriptionListResponse {
     pub add: Vec<String>,
     pub remove: Vec<String>,
     pub timestamp: i64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub update_urls: Vec<[String; 2]>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -83,6 +85,7 @@ pub async fn get_subscriptions(
             add,
             remove,
             timestamp: chrono::Utc::now().timestamp(),
+            update_urls: vec![],
         }))
     } else {
         let subscriptions = state
@@ -112,9 +115,30 @@ pub async fn upload_subscriptions(
         .await
         .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
 
+    // Sanitize URLs
+    let (sanitized_add, mut add_updates) =
+        crate::utils::sanitize_urls(req.add.as_deref().unwrap_or_default());
+    let (sanitized_remove, mut remove_updates) =
+        crate::utils::sanitize_urls(req.remove.as_deref().unwrap_or_default());
+
+    // Check for conflicts (same URL in both add and remove)
+    for add_url in &sanitized_add {
+        if !add_url.is_empty() && sanitized_remove.contains(add_url) {
+            return Err(reject::custom(AppError::BadRequest(format!(
+                "URL cannot be both added and removed: {}",
+                add_url
+            ))));
+        }
+    }
+
+    // Combine update_urls from both add and remove
+    let mut all_updates = Vec::new();
+    all_updates.append(&mut add_updates);
+    all_updates.append(&mut remove_updates);
+
     let changes = SubscriptionChanges {
-        add: req.add.as_deref().unwrap_or_default().to_vec(),
-        remove: req.remove.as_deref().unwrap_or_default().to_vec(),
+        add: sanitized_add,
+        remove: sanitized_remove,
         timestamp: req
             .timestamp
             .unwrap_or_else(|| chrono::Utc::now().timestamp()),
@@ -130,6 +154,7 @@ pub async fn upload_subscriptions(
         add: vec![],
         remove: vec![],
         timestamp: chrono::Utc::now().timestamp(),
+        update_urls: all_updates,
     }))
 }
 

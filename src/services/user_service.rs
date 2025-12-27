@@ -27,6 +27,13 @@ impl UserService {
         Ok(())
     }
 
+    pub async fn find_by_id(&self, id: i64) -> AppResult<Option<crate::models::User>> {
+        self.user_repo
+            .find_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
     pub async fn verify_credentials(&self, username: &str, password: &str) -> AppResult<i64> {
         let user = self
             .user_repo

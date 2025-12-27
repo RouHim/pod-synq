@@ -39,14 +39,38 @@ impl UserRepository {
         })
     }
 
+    pub async fn find_by_id(&self, id: i64) -> Result<Option<User>, Error> {
+        let result = sqlx::query(
+            r#"
+            SELECT
+                id, username, password_hash,
+                CAST(is_admin AS INTEGER) as is_admin,
+                created_at
+            FROM users
+            WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(result.map(|row| User {
+            id: row.get_unchecked(0),
+            username: row.get_unchecked::<&str, _>(1).to_string(),
+            password_hash: row.get_unchecked::<&str, _>(2).to_string(),
+            is_admin: row.get_unchecked::<i32, _>(3) != 0,
+            created_at: row.get_unchecked(4),
+        }))
+    }
+
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>, Error> {
         let result = sqlx::query(
             r#"
-            SELECT 
-                id, username, password_hash, 
-                CAST(is_admin AS INTEGER) as is_admin, 
+            SELECT
+                id, username, password_hash,
+                CAST(is_admin AS INTEGER) as is_admin,
                 created_at
-            FROM users 
+            FROM users
             WHERE username = ?
             "#,
         )

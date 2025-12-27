@@ -531,6 +531,299 @@ test_incremental_sync() {
     fi
 }
 
+# Test: Client Configuration API
+test_client_config() {
+    echo
+    log_info "Testing Client Configuration API"
+
+    local response
+    response=$(http_request GET "/clientconfig.json" "")
+    local body=$(echo "$response" | head -n -1)
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Get client config (no auth required)"
+
+    # Check that it has mygpo.base_url
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local has_base_url
+    has_base_url=$(echo "$body" | jq -e '.mygpo.base_url' >/dev/null 2>&1 && echo "yes" || echo "no")
+    if [ "$has_base_url" = "yes" ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Client config contains base_url"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Client config missing base_url"
+    fi
+}
+
+# Test: Device Synchronization API
+test_device_sync_status() {
+    echo
+    log_info "Testing Device Synchronization API - Get Status"
+
+    local response
+    response=$(http_request GET "/api/2/sync-devices/$TEST_USER.json" "$TEST_USER:$TEST_PASS")
+    local body=$(echo "$response" | head -n -1)
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Get device sync status"
+
+    # Check response structure
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local has_synchronized
+    has_synchronized=$(echo "$body" | jq -e '.synchronized' >/dev/null 2>&1 && echo "yes" || echo "no")
+    local has_not_synchronized
+    has_not_synchronized=$(echo "$body" | jq -e '."not-synchronized"' >/dev/null 2>&1 && echo "yes" || echo "no")
+
+    if [ "$has_synchronized" = "yes" ] && [ "$has_not_synchronized" = "yes" ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Sync status has correct structure"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Sync status missing required fields"
+    fi
+}
+
+test_device_sync_create() {
+    log_info "Testing Device Synchronization API - Create Sync Group"
+
+    # Create a second device first
+    local device_data='{"caption":"Test Phone","type":"mobile"}'
+    http_request POST "/api/2/devices/$TEST_USER/$TEST_DEVICE2.json" "$TEST_USER:$TEST_PASS" "$device_data" >/dev/null
+
+    # Synchronize the two devices
+    local sync_data="{\"synchronize\":[[\"$TEST_DEVICE\",\"$TEST_DEVICE2\"]]}"
+    local response
+    response=$(http_request POST "/api/2/sync-devices/$TEST_USER.json" "$TEST_USER:$TEST_PASS" "$sync_data")
+    local body=$(echo "$response" | head -n -1)
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Create device sync group"
+
+    # Check that devices are now synchronized
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local sync_count
+    sync_count=$(echo "$body" | jq '[.synchronized[] | select(length == 2)] | length')
+    if [ "$sync_count" -ge 1 ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Devices are synchronized"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Devices not synchronized"
+    fi
+}
+
+test_device_sync_stop() {
+    log_info "Testing Device Synchronization API - Stop Sync"
+
+    # Stop syncing one device
+    local sync_data="{\"stop-synchronize\":[\"$TEST_DEVICE2\"]}"
+    local response
+    response=$(http_request POST "/api/2/sync-devices/$TEST_USER.json" "$TEST_USER:$TEST_PASS" "$sync_data")
+    local body=$(echo "$response" | head -n -1)
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Stop device synchronization"
+
+    # Check that device is no longer synchronized
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local not_synced
+    not_synced=$(echo "$body" | jq '[."not-synchronized"[] | select(. == "'"$TEST_DEVICE2"'")] | length')
+    if [ "$not_synced" -ge 1 ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Device removed from sync group"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Device still in sync group"
+    fi
+}
+
+# Test: Favorites API
+test_favorites_via_settings() {
+    echo
+    log_info "Testing Favorites API - Mark Favorite via Settings"
+
+    local podcast_url="http://example.com/podcast.rss"
+    local episode_url="http://example.com/episode1.mp3"
+
+    # Mark episode as favorite via Settings API
+    local settings_data='{
+        "set": {
+            "is_favorite": true,
+            "title": "Test Episode",
+            "podcast_title": "Test Podcast",
+            "description": "A great episode"
+        }
+    }'
+
+    local response
+    response=$(http_request POST "/api/2/settings/$TEST_USER/episode.json?podcast=$podcast_url&episode=$episode_url" "$TEST_USER:$TEST_PASS" "$settings_data")
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Mark episode as favorite"
+}
+
+test_favorites_get() {
+    log_info "Testing Favorites API - Get Favorites"
+
+    local response
+    response=$(http_request GET "/api/2/favorites/$TEST_USER.json" "$TEST_USER:$TEST_PASS")
+    local body=$(echo "$response" | head -n -1)
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Get user favorites"
+
+    # Check that our favorite is in the list
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local favorite_count
+    favorite_count=$(echo "$body" | jq '[.[] | select(.title == "Test Episode")] | length')
+    if [ "$favorite_count" -ge 1 ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Favorite episode found in list"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Favorite episode not found in list"
+    fi
+
+    # Check response structure
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local has_required_fields
+    has_required_fields=$(echo "$body" | jq -e '.[0] | .title and .url and .podcast_title and .podcast_url and .mygpo_link' >/dev/null 2>&1 && echo "yes" || echo "no")
+    if [ "$has_required_fields" = "yes" ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Favorite has correct structure"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Favorite missing required fields"
+    fi
+}
+
+test_favorites_unfavorite() {
+    log_info "Testing Favorites API - Remove Favorite"
+
+    local podcast_url="http://example.com/podcast.rss"
+    local episode_url="http://example.com/episode1.mp3"
+
+    # Remove favorite via Settings API
+    local settings_data='{"remove":["is_favorite"]}'
+
+    local response
+    response=$(http_request POST "/api/2/settings/$TEST_USER/episode.json?podcast=$podcast_url&episode=$episode_url" "$TEST_USER:$TEST_PASS" "$settings_data")
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Remove favorite"
+
+    # Verify it's removed from favorites list
+    response=$(http_request GET "/api/2/favorites/$TEST_USER.json" "$TEST_USER:$TEST_PASS")
+    local body=$(echo "$response" | head -n -1)
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local favorite_count
+    favorite_count=$(echo "$body" | jq '[.[] | select(.url == "'"$episode_url"'")] | length')
+    if [ "$favorite_count" -eq 0 ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Favorite removed from list"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Favorite still in list"
+    fi
+}
+
+# Test: URL Sanitization
+test_url_sanitization() {
+    echo
+    log_info "Testing URL Sanitization"
+
+    # Try to add an invalid URL (non-HTTP/HTTPS)
+    local changes='{"add":["ftp://example.com/feed.rss","javascript:alert(1)","http://valid.com/feed.rss"],"remove":[]}'
+    local response
+    response=$(http_request POST "/api/2/subscriptions/$TEST_USER/$TEST_DEVICE.json" "$TEST_USER:$TEST_PASS" "$changes")
+    local body=$(echo "$response" | head -n -1)
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Upload with invalid URLs"
+
+    # Check for update_urls in response
+    TESTS_RUN=$((TESTS_RUN + 1))
+    local has_update_urls
+    has_update_urls=$(echo "$body" | jq -e '.update_urls' >/dev/null 2>&1 && echo "yes" || echo "no")
+    if [ "$has_update_urls" = "yes" ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Invalid URLs sanitized (update_urls present)"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "URL sanitization did not return update_urls"
+    fi
+}
+
+# Test: Session Cookie Authentication
+test_session_cookie_login() {
+    echo
+    log_info "Testing Session Cookie Authentication - Login"
+
+    # Login and capture cookie
+    local response
+    response=$(curl -s -c /tmp/podsynq-cookies.txt -w "\n%{http_code}" \
+        -X POST -u "$TEST_USER:$TEST_PASS" \
+        -H "Content-Type: application/json" -d "{}" \
+        "$BASE_URL/api/2/auth/$TEST_USER/login.json")
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Login with Basic Auth to receive cookie"
+
+    # Check that sessionid cookie was set
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if grep -q "sessionid" /tmp/podsynq-cookies.txt 2>/dev/null; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Session cookie set"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Session cookie not set"
+    fi
+}
+
+test_session_cookie_request() {
+    log_info "Testing Session Cookie Authentication - Use Cookie"
+
+    # Make a request using only the cookie (no Basic Auth)
+    local response
+    response=$(curl -s -b /tmp/podsynq-cookies.txt -w "\n%{http_code}" \
+        -X GET "$BASE_URL/api/2/devices/$TEST_USER/.json")
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Request with session cookie (no Basic Auth)"
+}
+
+test_session_cookie_logout() {
+    log_info "Testing Session Cookie Authentication - Logout"
+
+    # Logout using cookie
+    local response
+    response=$(curl -s -b /tmp/podsynq-cookies.txt -c /tmp/podsynq-cookies.txt -w "\n%{http_code}" \
+        -X POST -H "Content-Type: application/json" -d "{}" \
+        "$BASE_URL/api/2/auth/$TEST_USER/logout.json")
+    local status=$(echo "$response" | tail -n 1)
+
+    assert_http_code "$status" "200" "Logout with session cookie"
+
+    # Try to make a request with the invalidated cookie
+    response=$(curl -s -b /tmp/podsynq-cookies.txt -w "\n%{http_code}" \
+        -X GET "$BASE_URL/api/2/devices/$TEST_USER/.json")
+    status=$(echo "$response" | tail -n 1)
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if [ "$status" = "401" ]; then
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+        log_success "Invalidated cookie rejected"
+    else
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+        log_error "Invalidated cookie still accepted (expected 401, got $status)"
+    fi
+
+    # Cleanup
+    rm -f /tmp/podsynq-cookies.txt
+}
+
 # Print summary
 print_summary() {
     echo
@@ -594,7 +887,23 @@ main() {
     test_device_updates
     test_multi_device_sync
     test_incremental_sync
-    
+
+    test_client_config
+
+    test_device_sync_status
+    test_device_sync_create
+    test_device_sync_stop
+
+    test_favorites_via_settings
+    test_favorites_get
+    test_favorites_unfavorite
+
+    test_url_sanitization
+
+    test_session_cookie_login
+    test_session_cookie_request
+    test_session_cookie_logout
+
     # Print summary
     print_summary
 }

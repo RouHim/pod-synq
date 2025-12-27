@@ -1,32 +1,47 @@
 use warp::Filter;
 
-use crate::handlers::{auth, devices, episodes, settings, subscriptions};
+use crate::config::Config;
+use crate::handlers::{
+    auth, clientconfig, device_sync, devices, episodes, favorites, settings, subscriptions,
+};
 use crate::middleware::{with_auth, AuthService};
 use crate::state::AppState;
 
 pub fn create_routes(
     auth_service: AuthService,
     state: AppState,
+    config: Config,
 ) -> impl Filter<Extract = impl warp::Reply, Error = std::convert::Infallible> + Clone {
     let state_filter = warp::any().map(move || state.clone());
 
     let auth_filter = with_auth(auth_service.clone());
 
+    let base_url = config.base_url.clone();
+    let client_config = warp::get()
+        .and(warp::path!("clientconfig.json"))
+        .and(warp::any().map(move || base_url.clone()))
+        .and_then(clientconfig::get_client_config);
+
     let login = warp::post()
         .and(warp::path!("api" / "2" / "auth" / String / "login.json"))
         .and(auth_filter.clone())
+        .and(state_filter.clone())
         .and(
             warp::body::json()
                 .or(warp::any().map(|| serde_json::Value::Null))
                 .unify(),
         )
-        .and_then(|username, auth, _body: serde_json::Value| async move {
-            auth::login(username, auth).await
-        });
+        .and_then(
+            |username, auth, state, _body: serde_json::Value| async move {
+                auth::login(username, auth, state).await
+            },
+        );
 
     let logout = warp::post()
         .and(warp::path!("api" / "2" / "auth" / String / "logout.json"))
         .and(auth_filter.clone())
+        .and(state_filter.clone())
+        .and(warp::header::optional::<String>("cookie"))
         .and(warp::body::json())
         .and_then(auth::logout);
 
@@ -121,6 +136,27 @@ pub fn create_routes(
             settings::save_settings(username, scope, params, auth, state, req).await
         });
 
+    let config_clone = config.clone();
+    let get_favorites = warp::get()
+        .and(warp::path!("api" / "2" / "favorites" / String / ".json"))
+        .and(auth_filter.clone())
+        .and(state_filter.clone())
+        .and(warp::any().map(move || config_clone.clone()))
+        .and_then(favorites::get_favorites);
+
+    let get_sync_devices = warp::get()
+        .and(warp::path!("api" / "2" / "sync-devices" / String / ".json"))
+        .and(auth_filter.clone())
+        .and(state_filter.clone())
+        .and_then(device_sync::get_sync_status);
+
+    let update_sync_devices = warp::post()
+        .and(warp::path!("api" / "2" / "sync-devices" / String / ".json"))
+        .and(auth_filter.clone())
+        .and(state_filter.clone())
+        .and(warp::body::json())
+        .and_then(device_sync::update_sync_groups);
+
     let get_subscriptions_simple = warp::get()
         .and(warp::path!("subscriptions" / String / String / String))
         .and(auth_filter.clone())
@@ -140,17 +176,21 @@ pub fn create_routes(
         .and(warp::body::bytes())
         .and_then(subscriptions::upload_subscriptions_simple);
 
-    login
+    client_config
+        .or(login)
         .or(logout)
         .or(list_devices)
         .or(update_device)
         .or(get_device_updates)
+        .or(get_sync_devices)
+        .or(update_sync_devices)
         .or(get_subscriptions)
         .or(upload_subscriptions)
         .or(get_episode_actions)
         .or(upload_episode_actions)
         .or(get_settings)
         .or(save_settings)
+        .or(get_favorites)
         .or(get_subscriptions_simple)
         .or(get_all_subscriptions_simple)
         .or(upload_subscriptions_simple)

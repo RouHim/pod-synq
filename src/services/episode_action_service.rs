@@ -1,7 +1,7 @@
 use crate::{
     error::{AppError, AppResult},
     models::{EpisodeAction, EpisodeActionQuery},
-    repository::EpisodeActionRepository,
+    repository::{EpisodeActionRepository, EpisodeActionWithDevice},
 };
 
 #[derive(Clone)]
@@ -18,7 +18,7 @@ impl EpisodeActionService {
         &self,
         user_id: i64,
         query: EpisodeActionQuery,
-    ) -> AppResult<Vec<EpisodeAction>> {
+    ) -> AppResult<Vec<EpisodeActionWithDevice>> {
         self.action_repo
             .list(user_id, query)
             .await
@@ -31,7 +31,7 @@ impl EpisodeActionService {
         device_id: Option<i64>,
         podcast_url: Option<String>,
         since: i64,
-    ) -> AppResult<Vec<EpisodeAction>> {
+    ) -> AppResult<Vec<EpisodeActionWithDevice>> {
         let query = EpisodeActionQuery {
             since: Some(since),
             podcast: podcast_url,

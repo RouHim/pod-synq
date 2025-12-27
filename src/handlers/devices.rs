@@ -143,7 +143,7 @@ pub async fn get_device_updates(
                 serde_json::json!({
                     "podcast": action.podcast_url,
                     "url": action.episode_url,
-                    "device": action.device_id,
+                    "device": action.device,
                     "action": action.action,
                     "timestamp": action.timestamp,
                     "started": action.started,
