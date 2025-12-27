@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/RouHim/pod-synq/compare/v1.0.2...v1.0.3) (2025-12-27)
+
+
+### Bug Fixes
+
+* use git ls-remote to fetch tag without credentials ([64d6aa9](https://github.com/RouHim/pod-synq/commit/64d6aa9b973f8062ab5008f74bd136db11f57cb6))
+
 ## [1.0.2](https://github.com/RouHim/pod-synq/compare/v1.0.1...v1.0.2) (2025-12-27)
 
 
