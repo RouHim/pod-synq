@@ -38,6 +38,27 @@ jobs:
       - name: Build release
         run: cargo build --release
 
+      - name: Install E2E test dependencies
+        run: sudo apt-get update && sudo apt-get install -y curl jq
+
+      - name: Start server in background
+        run: |
+          PODSYNQ_ADMIN_USERNAME=testuser PODSYNQ_ADMIN_PASSWORD=testpass123 \
+          ./target/release/pod-synq &
+          echo $! > server.pid
+
+      - name: Run E2E tests
+        run: |
+          chmod +x tests/e2e.sh
+          ./tests/e2e.sh
+
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) || true
+          fi
+
   create-release:
     name: Create release
     needs: check
