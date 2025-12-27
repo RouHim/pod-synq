@@ -100,12 +100,14 @@ http_request() {
 # Wait for server to be ready
 wait_for_server() {
     log_info "Waiting for server at $BASE_URL..."
-    local max_attempts=30
+    local max_attempts=15
     local attempt=0
     
     while [ $attempt -lt $max_attempts ]; do
-        if curl -s -f "$BASE_URL/" >/dev/null 2>&1; then
-            log_success "Server is ready"
+        # Try to connect to any endpoint - 401 is fine, means server is up
+        local http_code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/2/auth/$TEST_USER/login.json" 2>/dev/null || echo "000")
+        if [ "$http_code" != "000" ]; then
+            log_success "Server is ready (HTTP $http_code)"
             return 0
         fi
         attempt=$((attempt + 1))

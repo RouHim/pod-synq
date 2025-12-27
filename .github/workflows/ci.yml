@@ -47,6 +47,7 @@ jobs:
           PODSYNQ_DB_PATH=:memory: \
           ./target/release/pod-synq &
           echo $! > server.pid
+          sleep 5
 
       - name: Run E2E tests
         env:
