@@ -47,6 +47,22 @@ impl UserService {
             .map_err(|e| AppError::Internal(e.to_string()))
     }
 
+    pub fn hash_password(password: &str) -> AppResult<String> {
+        use argon2::{
+            password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+            Argon2,
+        };
+
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        let password_hash = argon2
+            .hash_password(password.as_bytes(), &salt)
+            .map_err(|e| AppError::Internal(format!("Failed to hash password: {}", e)))?
+            .to_string();
+
+        Ok(password_hash)
+    }
+
     pub fn verify_password(&self, password_hash: &str, password: &str) -> AppResult<()> {
         let parsed_hash = argon2::PasswordHash::new(password_hash)
             .map_err(|_| AppError::Internal("Invalid password hash format".to_string()))?;
@@ -65,7 +81,8 @@ impl UserService {
         let is_empty = self.is_empty().await?;
 
         if is_empty {
-            self.create_user(username, password, true).await?;
+            let password_hash = Self::hash_password(password)?;
+            self.create_user(username, &password_hash, true).await?;
             tracing::info!("Initialized admin user: {}", username);
             return Ok(true);
         }
