@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/RouHim/pod-synq/compare/v1.0.3...v1.0.4) (2025-12-27)
+
+
+### Bug Fixes
+
+* add git safe directory config in build-binaries job ([bf14b92](https://github.com/RouHim/pod-synq/commit/bf14b92fd12c1dc17eb9b603ef93aa5bd83b8648))
+
 ## [1.0.3](https://github.com/RouHim/pod-synq/compare/v1.0.2...v1.0.3) (2025-12-27)
 
 
