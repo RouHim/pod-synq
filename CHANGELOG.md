@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/RouHim/pod-synq/compare/v1.0.0...v1.0.1) (2025-12-27)
+
+
+### Bug Fixes
+
+* ensure build jobs fetch latest tags for release uploads ([e607da4](https://github.com/RouHim/pod-synq/commit/e607da43766a5afa9939a3a6dcf59795404c1e2f))
+
 # 1.0.0 (2025-12-27)
 
 
