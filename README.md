@@ -68,9 +68,21 @@ cargo build
 
 ### Run tests
 
+**Unit tests:**
 ```bash
 cargo test
 ```
+
+**E2E tests:**
+```bash
+# Start the server first
+cargo run
+
+# In another terminal, run E2E tests
+./tests/e2e.sh
+```
+
+See [tests/README.md](tests/README.md) for more details on E2E testing.
 
 ### Format code
 
