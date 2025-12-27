@@ -44,6 +44,7 @@ jobs:
       - name: Start server in background
         run: |
           PODSYNQ_ADMIN_USERNAME=testuser PODSYNQ_ADMIN_PASSWORD=testpass123 \
+          PODSYNQ_DB_PATH=:memory: \
           ./target/release/pod-synq &
           echo $! > server.pid
 
