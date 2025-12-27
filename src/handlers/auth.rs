@@ -10,7 +10,11 @@ pub struct LogoutRequest {
 
 pub async fn login(_username: String, _auth: AuthContext) -> Result<impl Reply, Rejection> {
     tracing::info!("Login handler called for user: {}", _username);
-    tracing::info!("AuthContext - user_id: {}, username: {}", _auth.user_id, _auth.username);
+    tracing::info!(
+        "AuthContext - user_id: {}, username: {}",
+        _auth.user_id,
+        _auth.username
+    );
     tracing::info!("User logged in");
 
     Ok(json(&serde_json::json!({

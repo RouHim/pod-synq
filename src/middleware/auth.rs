@@ -51,16 +51,15 @@ pub fn with_auth(
                         AppError::Authentication
                     })?;
 
-                let credentials =
-                    String::from_utf8(decoded).map_err(|e| {
-                        tracing::error!("UTF8 decode error: {}", e);
-                        AppError::Authentication
-                    })?;
+                let credentials = String::from_utf8(decoded).map_err(|e| {
+                    tracing::error!("UTF8 decode error: {}", e);
+                    AppError::Authentication
+                })?;
 
                 let mut parts = credentials.splitn(2, ':');
                 let username = parts.next().ok_or(AppError::Authentication)?.to_string();
                 let password = parts.next().ok_or(AppError::Authentication)?.to_string();
-                
+
                 tracing::info!("Verifying credentials for user: {}", username);
 
                 let user_id = auth_service

@@ -15,7 +15,11 @@ pub fn create_routes(
     let login = warp::post()
         .and(warp::path!("api" / "2" / "auth" / String / "login.json"))
         .and(auth_filter.clone())
-        .and(warp::body::json().or(warp::any().map(|| serde_json::Value::Null)).unify())
+        .and(
+            warp::body::json()
+                .or(warp::any().map(|| serde_json::Value::Null))
+                .unify(),
+        )
         .and_then(|username, auth, _body: serde_json::Value| async move {
             auth::login(username, auth).await
         });
