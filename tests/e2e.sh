@@ -124,7 +124,7 @@ test_auth_login() {
     log_info "Testing Authentication API - Login"
     
     local response
-    response=$(http_request GET "/api/2/auth/$TEST_USER/login.json" "$TEST_USER:$TEST_PASS")
+    response=$(http_request POST "/api/2/auth/$TEST_USER/login.json" "$TEST_USER:$TEST_PASS")
     local status=$(echo "$response" | tail -n 1)
     
     assert_http_code "$status" "200" "Login with valid credentials"
@@ -134,7 +134,7 @@ test_auth_login_invalid() {
     log_info "Testing Authentication API - Invalid Login"
     
     local response
-    response=$(http_request GET "/api/2/auth/$TEST_USER/login.json" "$TEST_USER:wrongpass")
+    response=$(http_request POST "/api/2/auth/$TEST_USER/login.json" "$TEST_USER:wrongpass")
     local status=$(echo "$response" | tail -n 1)
     
     assert_http_code "$status" "401" "Login with invalid credentials"

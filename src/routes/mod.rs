@@ -12,7 +12,7 @@ pub fn create_routes(
 
     let auth_filter = with_auth(auth_service.clone());
 
-    let login = warp::get()
+    let login = warp::post()
         .and(warp::path!("api" / "2" / "auth" / String / "login.json"))
         .and(auth_filter.clone())
         .and_then(auth::login);
