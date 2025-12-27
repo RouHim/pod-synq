@@ -65,7 +65,7 @@ impl UserService {
     ) -> AppResult<bool> {
         let is_empty = self.is_empty().await?;
 
-        if !is_empty {
+        if is_empty {
             self.create_user(username, password, true).await?;
             tracing::info!("Initialized admin user: {}", username);
             return Ok(true);
