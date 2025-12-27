@@ -5,7 +5,8 @@ use crate::middleware::AuthContext;
 
 #[derive(Debug, Deserialize)]
 pub struct LogoutRequest {
-    _session_id: String,
+    #[serde(default)]
+    _session_id: Option<String>,
 }
 
 pub async fn login(_username: String, _auth: AuthContext) -> Result<impl Reply, Rejection> {
