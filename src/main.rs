@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
     let pool = create_database_pool(&config.db_path).await?;
     run_migrations(&pool).await?;
 
-    let state = AppState::new(pool.clone());
+    let state = AppState::new(pool.clone(), config.clone());
     let auth_service = AuthService::new(state.user_service.clone(), state.session_service.clone());
 
     initialize_admin_user(&state, &config).await?;
@@ -73,14 +73,24 @@ async fn create_database_pool(db_path: &str) -> anyhow::Result<SqlitePool> {
 }
 
 async fn run_migrations(pool: &SqlitePool) -> anyhow::Result<()> {
-    let migration_sql = include_str!("../migrations/001_initial.sql");
+    let migrations = [
+        include_str!("../migrations/001_initial.sql"),
+        include_str!("../migrations/002_add_settings.sql"),
+        include_str!("../migrations/003_sessions.sql"),
+        include_str!("../migrations/004_device_sync.sql"),
+        include_str!("../migrations/005_favorites.sql"),
+        include_str!("../migrations/006_podcasts_metadata.sql"),
+    ];
 
     tracing::info!("Running database migrations");
 
-    for statement in migration_sql.split(';') {
-        let statement = statement.trim();
-        if !statement.is_empty() {
-            sqlx::query(statement).execute(pool).await?;
+    for (i, migration_sql) in migrations.iter().enumerate() {
+        tracing::info!("Running migration {}", i + 1);
+        for statement in migration_sql.split(';') {
+            let statement = statement.trim();
+            if !statement.is_empty() {
+                sqlx::query(statement).execute(pool).await?;
+            }
         }
     }
 

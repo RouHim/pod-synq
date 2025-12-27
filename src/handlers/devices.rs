@@ -3,6 +3,7 @@ use warp::{reject, reply::json, Rejection, Reply};
 
 use crate::error::AppError;
 use crate::middleware::AuthContext;
+use crate::models::PodcastMetadata;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -29,7 +30,7 @@ pub struct UpdatesQueryParams {
 
 #[derive(Debug, Serialize)]
 pub struct DeviceUpdatesResponse {
-    pub add: Vec<String>,
+    pub add: Vec<PodcastMetadata>,
     pub remove: Vec<String>,
     pub updates: Vec<serde_json::Value>,
     pub timestamp: i64,
@@ -124,9 +125,17 @@ pub async fn get_device_updates(
 
     let since = params.since.unwrap_or(0);
 
-    let (add, remove) = state
+    // Get subscription changes (URLs)
+    let (add_urls, remove) = state
         .subscription_service
         .get_changes_since(auth.user_id, db_device_id.id, since)
+        .await
+        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+    // Enrich add_urls with metadata
+    let add = state
+        .podcast_service
+        .get_metadata_for_urls(&add_urls)
         .await
         .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
 
