@@ -11,8 +11,8 @@ NC='\033[0m' # No Color
 
 # Test configuration
 BASE_URL="${PODSYNQ_URL:-http://localhost:3000}"
-TEST_USER="testuser"
-TEST_PASS="testpass123"
+TEST_USER="${PODSYNQ_TEST_USER:-testuser}"
+TEST_PASS="${PODSYNQ_TEST_PASS:-testpass123}"
 TEST_DEVICE="test-device-001"
 TEST_DEVICE2="test-device-002"
 

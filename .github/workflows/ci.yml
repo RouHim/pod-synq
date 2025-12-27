@@ -52,6 +52,8 @@ jobs:
       - name: Run E2E tests
         env:
           PODSYNQ_URL: http://localhost:8080
+          PODSYNQ_TEST_USER: testuser
+          PODSYNQ_TEST_PASS: testpass123
         run: |
           chmod +x tests/e2e.sh
           ./tests/e2e.sh
