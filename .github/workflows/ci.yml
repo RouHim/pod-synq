@@ -95,6 +95,15 @@ jobs:
       - name: Fetch all tags
         run: git fetch --tags --force
 
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Checkout tag
+        run: git checkout ${{ steps.get_tag.outputs.tag }}
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -106,12 +115,6 @@ jobs:
       - name: Rename binary with target name
         run: |
           cp target/${{ matrix.target }}/release/pod-synq ${{ matrix.name }}
-
-      - name: Get latest tag
-        id: get_tag
-        run: |
-          TAG=$(git describe --tags --abbrev=0)
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Upload binary to release
         uses: softprops/action-gh-release@v2
