@@ -125,7 +125,9 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Configure git authentication
-        run: git config --global url."https://${{ secrets.RELEASE_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        env:
+          GIT_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: git config --global url."https://${{ env.GIT_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
       - name: Checkout tag
         run: |
