@@ -35,8 +35,7 @@ impl UserService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or(AppError::Authentication)?;
 
-        let user_service = UserService::new(self.user_repo.clone());
-        user_service.verify_password(&user.password_hash, password)?;
+        self.verify_password(&user.password_hash, password)?;
 
         Ok(user.id)
     }
