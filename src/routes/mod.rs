@@ -31,19 +31,27 @@ pub fn create_routes(
         .and_then(auth::logout);
 
     let list_devices = warp::get()
-        .and(warp::path!("api" / "2" / "devices" / String / ".json"))
+        .and(warp::path!("api" / "2" / "devices" / String))
+        .and(warp::path::end())
         .and(auth_filter.clone())
         .and(state_filter.clone())
-        .and_then(devices::list_devices);
+        .and_then(|username_with_ext: String, auth, state| async move {
+            let username = username_with_ext.trim_end_matches(".json");
+            devices::list_devices(username.to_string(), auth, state).await
+        });
 
     let update_device = warp::post()
-        .and(warp::path!(
-            "api" / "2" / "devices" / String / String / ".json"
-        ))
+        .and(warp::path!("api" / "2" / "devices" / String / String))
+        .and(warp::path::end())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and(warp::body::json())
-        .and_then(devices::update_device);
+        .and_then(
+            |username: String, device_id_with_ext: String, auth, state, req| async move {
+                let device_id = device_id_with_ext.trim_end_matches(".json");
+                devices::update_device(username, device_id.to_string(), auth, state, req).await
+            },
+        );
 
     let get_device_updates = warp::get()
         .and(warp::path!(
