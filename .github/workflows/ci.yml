@@ -98,11 +98,10 @@ jobs:
           TAG=$(git ls-remote --tags origin | grep -o 'refs/tags/v[0-9.]*$' | sort -V | tail -n1 | sed 's|refs/tags/||')
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Configure git safe directory
-        run: git config --global --add safe.directory /__w/pod-synq/pod-synq
-
-      - name: Fetch tag
-        run: git fetch origin ${{ steps.get_tag.outputs.tag }}
+      - name: Configure git and fetch tag
+        run: |
+          git config --global url."https://${{ secrets.RELEASE_TOKEN }}@github.com/".insteadOf "https://github.com/"
+          git fetch origin ${{ steps.get_tag.outputs.tag }}
 
       - name: Checkout tag
         run: git checkout ${{ steps.get_tag.outputs.tag }}
