@@ -92,14 +92,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch all tags
-        run: git fetch --tags --force
-
       - name: Get latest tag
         id: get_tag
         run: |
-          TAG=$(git describe --tags --abbrev=0)
+          TAG=$(git ls-remote --tags origin | grep -o 'refs/tags/v[0-9.]*$' | sort -V | tail -n1 | sed 's|refs/tags/||')
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Fetch tag
+        run: git fetch origin ${{ steps.get_tag.outputs.tag }}
 
       - name: Checkout tag
         run: git checkout ${{ steps.get_tag.outputs.tag }}
