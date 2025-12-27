@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/RouHim/pod-synq/compare/v1.0.1...v1.0.2) (2025-12-27)
+
+
+### Bug Fixes
+
+* checkout release tag before building binaries ([2db7712](https://github.com/RouHim/pod-synq/commit/2db7712ed6a39b7ccfe0bea5069a784ec96f8ad4))
+
 ## [1.0.1](https://github.com/RouHim/pod-synq/compare/v1.0.0...v1.0.1) (2025-12-27)
 
 
