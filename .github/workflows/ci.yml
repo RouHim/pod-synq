@@ -48,6 +48,8 @@ jobs:
           echo $! > server.pid
 
       - name: Run E2E tests
+        env:
+          PODSYNQ_URL: http://localhost:8080
         run: |
           chmod +x tests/e2e.sh
           ./tests/e2e.sh
