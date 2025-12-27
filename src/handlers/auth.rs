@@ -1,16 +1,11 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use warp::{reply::json, Rejection, Reply};
 
 use crate::middleware::AuthContext;
 
-#[derive(Debug, Serialize)]
-pub struct LoginResponse {
-    pub status: String,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct LogoutRequest {
-    pub session_id: String,
+    _session_id: String,
 }
 
 pub async fn login(_username: String, _auth: AuthContext) -> Result<impl Reply, Rejection> {

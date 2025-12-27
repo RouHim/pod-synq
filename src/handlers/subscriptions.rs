@@ -1,5 +1,10 @@
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use warp::{reject, reply::json, Rejection, Reply};
+use warp::{
+    reject,
+    reply::{self, json},
+    Rejection, Reply,
+};
 
 use crate::error::AppError;
 use crate::middleware::AuthContext;
@@ -20,9 +25,40 @@ pub struct SubscriptionUploadRequest {
     pub timestamp: Option<i64>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SubscriptionQueryParams {
+    pub since: Option<i64>,
+}
+
+fn to_opml(subscriptions: &[String]) -> String {
+    let mut opml = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Podcast Subscriptions</title>
+  </head>
+  <body>
+"#,
+    );
+    for url in subscriptions {
+        opml.push_str(&format!(
+            r#"    <outline type="rss" text="{}" xmlUrl="{}"/>"#,
+            url, url
+        ));
+        opml.push('\n');
+    }
+    opml.push_str("  </body>\n</opml>");
+    opml
+}
+
+fn to_txt(subscriptions: &[String]) -> String {
+    subscriptions.join("\n")
+}
+
 pub async fn get_subscriptions(
     username: String,
     device_id: String,
+    params: SubscriptionQueryParams,
     auth: AuthContext,
     state: AppState,
 ) -> Result<impl Reply, Rejection> {
@@ -36,13 +72,27 @@ pub async fn get_subscriptions(
         .await
         .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
 
-    let subscriptions = state
-        .subscription_service
-        .get_subscriptions(auth.user_id, db_device_id)
-        .await
-        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+    if let Some(since) = params.since {
+        let (add, remove) = state
+            .subscription_service
+            .get_changes_since(auth.user_id, db_device_id, since)
+            .await
+            .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
 
-    Ok(json(&subscriptions))
+        Ok(json(&SubscriptionListResponse {
+            add,
+            remove,
+            timestamp: chrono::Utc::now().timestamp(),
+        }))
+    } else {
+        let subscriptions = state
+            .subscription_service
+            .get_subscriptions(auth.user_id, db_device_id)
+            .await
+            .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+        Ok(json(&subscriptions))
+    }
 }
 
 pub async fn upload_subscriptions(
@@ -81,4 +131,146 @@ pub async fn upload_subscriptions(
         remove: vec![],
         timestamp: chrono::Utc::now().timestamp(),
     }))
+}
+
+pub async fn get_subscriptions_simple(
+    username: String,
+    device_id: String,
+    format: String,
+    auth: AuthContext,
+    state: AppState,
+) -> Result<Box<dyn Reply + Send>, Rejection> {
+    if username != auth.username {
+        return Err(reject::custom(AppError::Authorization));
+    }
+
+    let db_device_id = state
+        .device_service
+        .get_or_create_device(auth.user_id, &device_id, None, None)
+        .await
+        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+    let subscriptions = state
+        .subscription_service
+        .get_subscriptions(auth.user_id, db_device_id)
+        .await
+        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+    let reply: Box<dyn Reply + Send> = match format.as_str() {
+        "json" => Box::new(json(&subscriptions)),
+        "opml" => Box::new(reply::with_header(
+            to_opml(&subscriptions),
+            "content-type",
+            "text/xml",
+        )),
+        "txt" => Box::new(reply::with_header(
+            to_txt(&subscriptions),
+            "content-type",
+            "text/plain",
+        )),
+        _ => {
+            let msg = format!("Invalid format: {}", format);
+            return Err(reject::custom(AppError::Internal(msg)));
+        }
+    };
+
+    Ok(reply)
+}
+
+pub async fn get_all_subscriptions_simple(
+    username: String,
+    format: String,
+    auth: AuthContext,
+    state: AppState,
+) -> Result<Box<dyn Reply + Send>, Rejection> {
+    if username != auth.username {
+        return Err(reject::custom(AppError::Authorization));
+    }
+
+    let subscriptions = state
+        .subscription_service
+        .get_all_subscriptions(auth.user_id)
+        .await
+        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+    let reply: Box<dyn Reply + Send> = match format.as_str() {
+        "json" => Box::new(json(&subscriptions)),
+        "opml" => Box::new(reply::with_header(
+            to_opml(&subscriptions),
+            "content-type",
+            "text/xml",
+        )),
+        "txt" => Box::new(reply::with_header(
+            to_txt(&subscriptions),
+            "content-type",
+            "text/plain",
+        )),
+        _ => {
+            let msg = format!("Invalid format: {}", format);
+            return Err(reject::custom(AppError::Internal(msg)));
+        }
+    };
+
+    Ok(reply)
+}
+
+pub async fn upload_subscriptions_simple(
+    username: String,
+    device_id: String,
+    format: String,
+    auth: AuthContext,
+    state: AppState,
+    body: Bytes,
+) -> Result<impl Reply, Rejection> {
+    if username != auth.username {
+        return Err(reject::custom(AppError::Authorization));
+    }
+
+    let db_device_id = state
+        .device_service
+        .get_or_create_device(auth.user_id, &device_id, None, None)
+        .await
+        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+    let body_str = String::from_utf8(body.to_vec())
+        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+    let podcast_urls = match format.as_str() {
+        "json" => {
+            let urls: Vec<String> = serde_json::from_str(&body_str)
+                .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+            urls
+        }
+        "txt" => body_str
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| line.trim().to_string())
+            .collect(),
+        "opml" => {
+            let urls: Vec<String> = body_str
+                .lines()
+                .filter_map(|line| {
+                    if let Some(start) = line.find("xmlUrl=\"") {
+                        if let Some(end) = line[start + 8..].find('"') {
+                            return Some(line[start + 8..start + 8 + end].to_string());
+                        }
+                    }
+                    None
+                })
+                .collect();
+            urls
+        }
+        _ => {
+            let msg = format!("Invalid format: {}", format);
+            return Err(reject::custom(AppError::Internal(msg)));
+        }
+    };
+
+    state
+        .subscription_service
+        .set_subscriptions(auth.user_id, db_device_id, podcast_urls)
+        .await
+        .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
+
+    Ok(reply::with_header("", "content-type", "text/plain"))
 }

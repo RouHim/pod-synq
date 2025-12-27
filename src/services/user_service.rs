@@ -41,55 +41,11 @@ impl UserService {
         Ok(user.id)
     }
 
-    pub async fn get_user(&self, id: i64) -> AppResult<crate::models::User> {
-        let user = self
-            .user_repo
-            .find_by_id(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .ok_or(AppError::UserNotFound)?;
-        Ok(user)
-    }
-
-    pub async fn reset_password(&self, id: i64, new_password: &str) -> AppResult<()> {
-        self.user_repo
-            .update_password(id, new_password)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(())
-    }
-
-    pub async fn delete_user(&self, id: i64) -> AppResult<()> {
-        self.user_repo
-            .delete(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        tracing::info!("Deleted user ID: {}", id);
-        Ok(())
-    }
-
-    pub async fn list_users(&self) -> AppResult<Vec<crate::models::User>> {
-        Ok(self
-            .user_repo
-            .list_all()
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?)
-    }
-
-    pub async fn count(&self) -> AppResult<i64> {
-        Ok(self
-            .user_repo
-            .count()
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?)
-    }
-
     pub async fn is_empty(&self) -> AppResult<bool> {
-        Ok(self
-            .user_repo
+        self.user_repo
             .is_empty()
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?)
+            .map_err(|e| AppError::Internal(e.to_string()))
     }
 
     pub fn verify_password(&self, password_hash: &str, password: &str) -> AppResult<()> {

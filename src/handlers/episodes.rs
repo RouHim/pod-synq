@@ -41,9 +41,7 @@ pub async fn get_episode_actions(
     let mut result: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
 
     for action in actions {
-        let podcast_actions = result
-            .entry(action.podcast_url.clone())
-            .or_insert_with(Vec::new);
+        let podcast_actions = result.entry(action.podcast_url.clone()).or_default();
 
         podcast_actions.push(serde_json::json!({
             "podcast": action.podcast_url,
@@ -74,7 +72,7 @@ pub async fn upload_episode_actions(
         .episode_action_service
         .upload_episode_actions(actions)
         .await
-        .map_err(|e| warp::reject::custom(e))?;
+        .map_err(warp::reject::custom)?;
 
     Ok(json(&serde_json::json!({
         "update_urls": [],

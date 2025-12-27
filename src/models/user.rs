@@ -8,15 +8,3 @@ pub struct User {
     pub is_admin: bool,
     pub created_at: i64,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateUser {
-    pub username: String,
-    pub password: String,
-    pub is_admin: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateUserPassword {
-    pub password: String,
-}

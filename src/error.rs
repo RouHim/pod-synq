@@ -16,24 +16,6 @@ pub enum AppError {
     #[error("Authorization failed")]
     Authorization,
 
-    #[error("User not found")]
-    UserNotFound,
-
-    #[error("Device not found")]
-    DeviceNotFound,
-
-    #[error("Subscription not found")]
-    SubscriptionNotFound,
-
-    #[error("Invalid input")]
-    InvalidInput,
-
-    #[error("Configuration error: {0}")]
-    Configuration(String),
-
-    #[error("Session expired")]
-    SessionExpired,
-
     #[error("Internal server error: {0}")]
     Internal(String),
 }
@@ -55,30 +37,6 @@ impl Reply for AppError {
                 tracing::warn!("Authorization failed");
                 (StatusCode::FORBIDDEN, "Authorization failed")
             }
-            AppError::UserNotFound => {
-                tracing::info!("User not found");
-                (StatusCode::NOT_FOUND, "User not found")
-            }
-            AppError::DeviceNotFound => {
-                tracing::info!("Device not found");
-                (StatusCode::NOT_FOUND, "Device not found")
-            }
-            AppError::SubscriptionNotFound => {
-                tracing::info!("Subscription not found");
-                (StatusCode::NOT_FOUND, "Subscription not found")
-            }
-            AppError::InvalidInput => {
-                tracing::warn!("Invalid input");
-                (StatusCode::BAD_REQUEST, "Invalid input")
-            }
-            AppError::Configuration(_) => {
-                tracing::error!("Configuration error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Configuration error")
-            }
-            AppError::SessionExpired => {
-                tracing::info!("Session expired");
-                (StatusCode::UNAUTHORIZED, "Session expired")
-            }
             AppError::Internal(msg) => {
                 tracing::error!("Internal error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
@@ -98,14 +56,6 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert
             AppError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error"),
             AppError::Authentication => (StatusCode::UNAUTHORIZED, "Authentication failed"),
             AppError::Authorization => (StatusCode::FORBIDDEN, "Authorization failed"),
-            AppError::UserNotFound => (StatusCode::NOT_FOUND, "User not found"),
-            AppError::DeviceNotFound => (StatusCode::NOT_FOUND, "Device not found"),
-            AppError::SubscriptionNotFound => (StatusCode::NOT_FOUND, "Subscription not found"),
-            AppError::InvalidInput => (StatusCode::BAD_REQUEST, "Invalid input"),
-            AppError::Configuration(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Configuration error")
-            }
-            AppError::SessionExpired => (StatusCode::UNAUTHORIZED, "Session expired"),
             AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         }
     } else {

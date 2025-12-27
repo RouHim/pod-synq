@@ -55,7 +55,7 @@ pub fn with_auth(
                 let user_id = auth_service
                     .verify_credentials(&username, &password)
                     .await
-                    .map_err(|e| warp::reject::custom(e))?;
+                    .map_err(warp::reject::custom)?;
 
                 Ok(AuthContext { user_id, username })
             }

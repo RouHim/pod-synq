@@ -23,39 +23,37 @@ impl SubscriptionService {
         Ok(subs)
     }
 
-    pub async fn add_subscription(
-        &self,
-        user_id: i64,
-        device_id: i64,
-        podcast_url: &str,
-    ) -> AppResult<()> {
-        self.sub_repo
-            .add(user_id, device_id, podcast_url)
+    pub async fn get_all_subscriptions(&self, user_id: i64) -> AppResult<Vec<String>> {
+        let subs = self
+            .sub_repo
+            .list_all_urls_by_user(user_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        tracing::info!(
-            "Added subscription: {} for device {}",
-            podcast_url,
-            device_id,
-        );
-        Ok(())
+        Ok(subs)
     }
 
-    pub async fn remove_subscription(
+    pub async fn get_changes_since(
         &self,
         user_id: i64,
         device_id: i64,
-        podcast_url: &str,
+        since: i64,
+    ) -> AppResult<(Vec<String>, Vec<String>)> {
+        self.sub_repo
+            .get_changes_since(user_id, device_id, since)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    pub async fn set_subscriptions(
+        &self,
+        user_id: i64,
+        device_id: i64,
+        podcast_urls: Vec<String>,
     ) -> AppResult<()> {
         self.sub_repo
-            .remove(user_id, device_id, podcast_url)
+            .set_subscriptions(user_id, device_id, podcast_urls)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        tracing::info!(
-            "Removed subscription: {} for device {}",
-            podcast_url,
-            device_id,
-        );
         Ok(())
     }
 
@@ -83,10 +81,9 @@ impl SubscriptionService {
         user_id: i64,
         device_id: Option<i64>,
     ) -> AppResult<i64> {
-        Ok(self
-            .sub_repo
+        self.sub_repo
             .count(user_id, device_id)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?)
+            .map_err(|e| AppError::Internal(e.to_string()))
     }
 }

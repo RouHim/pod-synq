@@ -13,6 +13,18 @@ impl DeviceService {
         Self { device_repo }
     }
 
+    pub async fn find_by_device_id(
+        &self,
+        user_id: i64,
+        device_id: &str,
+    ) -> AppResult<crate::models::Device> {
+        self.device_repo
+            .find_by_device_id(user_id, device_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::Internal(format!("Device {} not found", device_id)))
+    }
+
     pub async fn get_or_create_device(
         &self,
         user_id: i64,
@@ -40,41 +52,10 @@ impl DeviceService {
         Ok(device_id)
     }
 
-    pub async fn get_device(&self, id: i64) -> AppResult<crate::models::Device> {
-        self.device_repo
-            .find_by_id(id)
-            .await?
-            .ok_or(AppError::DeviceNotFound)
-    }
-
     pub async fn list_user_devices(&self, user_id: i64) -> AppResult<Vec<crate::models::Device>> {
-        Ok(self
-            .device_repo
+        self.device_repo
             .list_by_user(user_id)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?)
-    }
-
-    pub async fn update_device(
-        &self,
-        id: i64,
-        caption: Option<&str>,
-        device_type: Option<&str>,
-    ) -> AppResult<crate::models::Device> {
-        Ok(self
-            .device_repo
-            .update(id, caption, device_type)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?)
-    }
-
-    pub async fn delete_device(&self, id: i64) -> AppResult<()> {
-        self.device_repo.delete(id).await?;
-        tracing::info!("Deleted device ID: {}", id);
-        Ok(())
-    }
-
-    pub async fn count_devices(&self, user_id: Option<i64>) -> AppResult<i64> {
-        Ok(self.device_repo.count(user_id).await?)
+            .map_err(|e| AppError::Internal(e.to_string()))
     }
 }
