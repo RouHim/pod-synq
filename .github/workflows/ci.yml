@@ -42,9 +42,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y curl jq
 
       - name: Start server in background
+        env:
+          PODSYNQ_ADMIN_USERNAME: testuser
+          PODSYNQ_ADMIN_PASSWORD: testpass123
+          PODSYNQ_DB_PATH: ":memory:"
         run: |
-          PODSYNQ_ADMIN_USERNAME=testuser PODSYNQ_ADMIN_PASSWORD=testpass123 \
-          PODSYNQ_DB_PATH=:memory: \
           ./target/release/pod-synq &
           echo $! > server.pid
           sleep 5
