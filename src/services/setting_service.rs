@@ -1,8 +1,7 @@
-use crate::{
-    error::{AppError, AppResult},
-    models::SettingRequest,
-    repository::{SettingKey, SettingRepository},
-};
+use crate::error::AppResult;
+use crate::models::SettingRequest;
+use crate::repository::traits::SettingRepositoryTrait;
+use crate::repository::{SettingKey, SettingRepository};
 
 #[derive(Clone)]
 pub struct SettingService {
@@ -25,8 +24,7 @@ impl SettingService {
         let settings = self
             .setting_repo
             .get_settings(user_id, scope, podcast_url, device_id, episode_url)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
 
         let mut result = serde_json::Map::new();
         for setting in settings {
@@ -60,8 +58,7 @@ impl SettingService {
                 };
                 self.setting_repo
                     .upsert_setting(setting_key, &value_str)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    .await?;
             }
         }
 
@@ -75,10 +72,7 @@ impl SettingService {
                     episode_url,
                     key: &key,
                 };
-                self.setting_repo
-                    .delete_setting(setting_key)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                self.setting_repo.delete_setting(setting_key).await?;
             }
         }
 

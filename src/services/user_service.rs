@@ -1,6 +1,6 @@
 use crate::{
     error::{AppError, AppResult},
-    repository::UserRepository,
+    repository::{UserRepository, UserRepositoryTrait},
 };
 use argon2::PasswordVerifier;
 

@@ -10,6 +10,13 @@ pub struct AuthContext {
     pub username: String,
 }
 
+/// Authorized context - user is both authenticated and authorized to access the resource
+#[derive(Clone, Debug)]
+pub struct AuthorizedContext {
+    pub user_id: i64,
+    pub username: String,
+}
+
 #[derive(Clone)]
 pub struct AuthService {
     user_service: Arc<crate::services::UserService>,

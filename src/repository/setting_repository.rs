@@ -1,5 +1,10 @@
+use async_trait::async_trait;
+use sqlx::{Row, SqlitePool};
+
+use crate::error::AppResult;
 use crate::models::Setting;
-use sqlx::{Error, Row, SqlitePool};
+
+use super::traits::SettingRepositoryTrait;
 
 #[derive(Clone)]
 pub struct SettingRepository {
@@ -20,15 +25,18 @@ impl SettingRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn get_settings(
+#[async_trait]
+impl SettingRepositoryTrait for SettingRepository {
+    async fn get_settings(
         &self,
         user_id: i64,
         scope: &str,
         podcast_url: Option<&str>,
         device_id: Option<i64>,
         episode_url: Option<&str>,
-    ) -> Result<Vec<Setting>, Error> {
+    ) -> AppResult<Vec<Setting>> {
         let (podcast_condition, podcast_bind) = if let Some(url) = podcast_url {
             ("podcast_url = ?".to_string(), Some(url))
         } else {
@@ -57,6 +65,8 @@ impl SettingRepository {
             podcast_condition, device_condition, episode_condition
         );
 
+        // Build query dynamically based on which parameters are present
+        // We can't use query_as with dynamic SQL easily, so we keep using Row::get
         let mut q = sqlx::query(&query).bind(user_id).bind(scope);
         if let Some(url) = podcast_bind {
             q = q.bind(url);
@@ -87,30 +97,30 @@ impl SettingRepository {
             .collect())
     }
 
-    pub async fn upsert_setting(&self, key: SettingKey<'_>, value: &str) -> Result<(), Error> {
-        let query = r#"
+    async fn upsert_setting(&self, key: SettingKey<'_>, value: &str) -> AppResult<()> {
+        sqlx::query(
+            r#"
             INSERT INTO settings (user_id, scope, podcast_url, device_id, episode_url, key, value)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id, scope, podcast_url, device_id, episode_url, key)
             DO UPDATE SET value = ?, updated_at = strftime('%s', 'now')
-        "#;
-
-        sqlx::query(query)
-            .bind(key.user_id)
-            .bind(key.scope)
-            .bind(key.podcast_url)
-            .bind(key.device_id)
-            .bind(key.episode_url)
-            .bind(key.key)
-            .bind(value)
-            .bind(value)
-            .execute(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(key.user_id)
+        .bind(key.scope)
+        .bind(key.podcast_url)
+        .bind(key.device_id)
+        .bind(key.episode_url)
+        .bind(key.key)
+        .bind(value)
+        .bind(value)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
 
-    pub async fn delete_setting(&self, key: SettingKey<'_>) -> Result<(), Error> {
+    async fn delete_setting(&self, key: SettingKey<'_>) -> AppResult<()> {
         let (podcast_condition, podcast_bind) = if let Some(url) = key.podcast_url {
             ("podcast_url = ?".to_string(), Some(url))
         } else {
@@ -137,10 +147,7 @@ impl SettingRepository {
             podcast_condition, device_condition, episode_condition
         );
 
-        let mut q = sqlx::query(&query)
-            .bind(key.user_id)
-            .bind(key.scope)
-            .bind(key.key);
+        let mut q = sqlx::query(&query).bind(key.user_id).bind(key.scope);
         if let Some(url) = podcast_bind {
             q = q.bind(url);
         }
@@ -150,6 +157,7 @@ impl SettingRepository {
         if let Some(url) = episode_bind {
             q = q.bind(url);
         }
+        q = q.bind(key.key);
 
         q.execute(&self.pool).await?;
 

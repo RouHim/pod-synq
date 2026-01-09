@@ -1,50 +1,15 @@
-use serde::{Deserialize, Serialize};
 use warp::{reject, reply::json, Rejection, Reply};
 
+use crate::constants::{DEFAULT_DEVICE_CAPTION, DEFAULT_DEVICE_TYPE};
 use crate::error::AppError;
-use crate::middleware::AuthContext;
-use crate::models::PodcastMetadata;
+use crate::middleware::AuthorizedContext;
+use crate::models::{DeviceInfo, DeviceUpdatesResponse, UpdateDeviceRequest, UpdatesQueryParams};
 use crate::state::AppState;
 
-#[derive(Debug, Serialize)]
-pub struct DeviceInfo {
-    pub id: String,
-    pub caption: String,
-    #[serde(rename = "type")]
-    pub device_type: String,
-    pub subscriptions: i64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateDeviceRequest {
-    pub caption: Option<String>,
-    #[serde(rename = "type")]
-    pub device_type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdatesQueryParams {
-    pub since: Option<i64>,
-    pub include_actions: Option<bool>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct DeviceUpdatesResponse {
-    pub add: Vec<PodcastMetadata>,
-    pub remove: Vec<String>,
-    pub updates: Vec<serde_json::Value>,
-    pub timestamp: i64,
-}
-
 pub async fn list_devices(
-    username: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let devices = state
         .device_service
         .list_user_devices(auth.user_id)
@@ -63,8 +28,10 @@ pub async fn list_devices(
             id: device.device_id,
             caption: device
                 .caption
-                .unwrap_or_else(|| "Unknown Device".to_string()),
-            device_type: device.r#type.unwrap_or_else(|| "unknown".to_string()),
+                .unwrap_or_else(|| DEFAULT_DEVICE_CAPTION.to_string()),
+            device_type: device
+                .r#type
+                .unwrap_or_else(|| DEFAULT_DEVICE_TYPE.to_string()),
             subscriptions: sub_count,
         });
     }
@@ -73,16 +40,11 @@ pub async fn list_devices(
 }
 
 pub async fn update_device(
-    username: String,
     device_id: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
     req: UpdateDeviceRequest,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(warp::reject::custom(crate::error::AppError::Authorization));
-    }
-
     let db_device_id = state
         .device_service
         .get_or_create_device(
@@ -98,7 +60,7 @@ pub async fn update_device(
         "Device {} (ID: {}) updated for user {}",
         device_id,
         db_device_id,
-        username
+        auth.username
     );
 
     Ok(json(&serde_json::json!({
@@ -107,16 +69,11 @@ pub async fn update_device(
 }
 
 pub async fn get_device_updates(
-    username: String,
     device_id: String,
     params: UpdatesQueryParams,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let db_device_id = state
         .device_service
         .find_by_device_id(auth.user_id, &device_id)

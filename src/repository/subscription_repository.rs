@@ -1,4 +1,11 @@
-use sqlx::{Error, Row, SqlitePool};
+use async_trait::async_trait;
+use sqlx::SqlitePool;
+use std::collections::HashSet;
+
+use crate::error::AppResult;
+use crate::models::SubscriptionChanges;
+
+use super::traits::SubscriptionRepositoryTrait;
 
 #[derive(Clone)]
 pub struct SubscriptionRepository {
@@ -9,13 +16,12 @@ impl SubscriptionRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn list_by_device(
-        &self,
-        user_id: i64,
-        device_id: i64,
-    ) -> Result<Vec<String>, sqlx::Error> {
-        let rows = sqlx::query(
+#[async_trait]
+impl SubscriptionRepositoryTrait for SubscriptionRepository {
+    async fn list_by_device(&self, user_id: i64, device_id: i64) -> AppResult<Vec<String>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
             r#"
             SELECT podcast_url
             FROM subscriptions
@@ -28,14 +34,11 @@ impl SubscriptionRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| row.get_unchecked::<i64, _>(0).to_string())
-            .collect())
+        Ok(rows.into_iter().map(|(url,)| url).collect())
     }
 
-    pub async fn list_all_urls_by_user(&self, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
-        let rows = sqlx::query(
+    async fn list_all_urls_by_user(&self, user_id: i64) -> AppResult<Vec<String>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
             r#"
             SELECT DISTINCT podcast_url
             FROM subscriptions
@@ -47,19 +50,16 @@ impl SubscriptionRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| row.get_unchecked::<i64, _>(0).to_string())
-            .collect())
+        Ok(rows.into_iter().map(|(url,)| url).collect())
     }
 
-    pub async fn get_changes_since(
+    async fn get_changes_since(
         &self,
         user_id: i64,
         device_id: i64,
         since: i64,
-    ) -> Result<(Vec<String>, Vec<String>), sqlx::Error> {
-        let added = sqlx::query(
+    ) -> AppResult<(Vec<String>, Vec<String>)> {
+        let added: Vec<(String,)> = sqlx::query_as(
             r#"
             SELECT podcast_url
             FROM subscriptions
@@ -73,7 +73,7 @@ impl SubscriptionRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        let removed = sqlx::query(
+        let removed: Vec<(String,)> = sqlx::query_as(
             r#"
             SELECT podcast_url
             FROM subscriptions
@@ -87,28 +87,21 @@ impl SubscriptionRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        let added_urls = added
-            .into_iter()
-            .map(|row| row.get_unchecked::<i64, _>(0).to_string())
-            .collect();
-
-        let removed_urls = removed
-            .into_iter()
-            .map(|row| row.get_unchecked::<i64, _>(0).to_string())
-            .collect();
+        let added_urls = added.into_iter().map(|(url,)| url).collect();
+        let removed_urls = removed.into_iter().map(|(url,)| url).collect();
 
         Ok((added_urls, removed_urls))
     }
 
-    pub async fn set_subscriptions(
+    async fn set_subscriptions(
         &self,
         user_id: i64,
         device_id: i64,
         podcast_urls: Vec<String>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> AppResult<()> {
         let mut tx = self.pool.begin().await?;
 
-        let current = sqlx::query(
+        let current: Vec<(String,)> = sqlx::query_as(
             r#"
             SELECT podcast_url
             FROM subscriptions
@@ -120,12 +113,8 @@ impl SubscriptionRepository {
         .fetch_all(&mut *tx)
         .await?;
 
-        let current_urls: std::collections::HashSet<String> = current
-            .into_iter()
-            .map(|row| row.get_unchecked::<i64, _>(0).to_string())
-            .collect();
-
-        let new_urls: std::collections::HashSet<String> = podcast_urls.into_iter().collect();
+        let current_urls: HashSet<String> = current.into_iter().map(|(url,)| url).collect();
+        let new_urls: HashSet<String> = podcast_urls.into_iter().collect();
 
         for url in &new_urls {
             if !current_urls.contains(url) {
@@ -164,12 +153,12 @@ impl SubscriptionRepository {
         Ok(())
     }
 
-    pub async fn apply_changes(
+    async fn apply_changes(
         &self,
         user_id: i64,
         device_id: i64,
-        changes: crate::models::SubscriptionChanges,
-    ) -> Result<(), sqlx::Error> {
+        changes: SubscriptionChanges,
+    ) -> AppResult<()> {
         let mut tx = self.pool.begin().await?;
 
         for podcast_url in changes.add {
@@ -205,11 +194,11 @@ impl SubscriptionRepository {
         Ok(())
     }
 
-    pub async fn count(&self, user_id: i64, device_id: Option<i64>) -> Result<i64, Error> {
-        if let Some(device_id) = device_id {
-            let result = sqlx::query(
+    async fn count(&self, user_id: i64, device_id: Option<i64>) -> AppResult<i64> {
+        let count: (i64,) = if let Some(device_id) = device_id {
+            sqlx::query_as(
                 r#"
-                SELECT COUNT(*) as count
+                SELECT COUNT(*)
                 FROM subscriptions
                 WHERE user_id = ? AND device_id = ? AND removed_at IS NULL
                 "#,
@@ -217,20 +206,20 @@ impl SubscriptionRepository {
             .bind(user_id)
             .bind(device_id)
             .fetch_one(&self.pool)
-            .await?;
-            Ok(result.get_unchecked::<i64, _>(0))
+            .await?
         } else {
-            let result = sqlx::query(
+            sqlx::query_as(
                 r#"
-                SELECT COUNT(*) as count
+                SELECT COUNT(*)
                 FROM subscriptions
                 WHERE user_id = ? AND removed_at IS NULL
                 "#,
             )
             .bind(user_id)
             .fetch_one(&self.pool)
-            .await?;
-            Ok(result.get_unchecked::<i64, _>(0))
-        }
+            .await?
+        };
+
+        Ok(count.0)
     }
 }

@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use serde::{Deserialize, Serialize};
 use warp::{
     reject,
     reply::{self, json},
@@ -7,67 +6,20 @@ use warp::{
 };
 
 use crate::error::AppError;
-use crate::middleware::AuthContext;
-use crate::models::SubscriptionChanges;
+use crate::middleware::AuthorizedContext;
+use crate::models::{
+    SubscriptionChanges, SubscriptionListResponse, SubscriptionQueryParams,
+    SubscriptionUploadRequest,
+};
 use crate::state::AppState;
-
-#[derive(Debug, Serialize)]
-pub struct SubscriptionListResponse {
-    pub add: Vec<String>,
-    pub remove: Vec<String>,
-    pub timestamp: i64,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub update_urls: Vec<[String; 2]>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SubscriptionUploadRequest {
-    pub add: Option<Vec<String>>,
-    pub remove: Option<Vec<String>>,
-    pub timestamp: Option<i64>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SubscriptionQueryParams {
-    pub since: Option<i64>,
-}
-
-fn to_opml(subscriptions: &[String]) -> String {
-    let mut opml = String::from(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<opml version="2.0">
-  <head>
-    <title>Podcast Subscriptions</title>
-  </head>
-  <body>
-"#,
-    );
-    for url in subscriptions {
-        opml.push_str(&format!(
-            r#"    <outline type="rss" text="{}" xmlUrl="{}"/>"#,
-            url, url
-        ));
-        opml.push('\n');
-    }
-    opml.push_str("  </body>\n</opml>");
-    opml
-}
-
-fn to_txt(subscriptions: &[String]) -> String {
-    subscriptions.join("\n")
-}
+use crate::utils::{to_opml, to_txt};
 
 pub async fn get_subscriptions(
-    username: String,
     device_id: String,
     params: SubscriptionQueryParams,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let db_device_id = state
         .device_service
         .get_or_create_device(auth.user_id, &device_id, None, None)
@@ -99,16 +51,11 @@ pub async fn get_subscriptions(
 }
 
 pub async fn upload_subscriptions(
-    username: String,
     device_id: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
     req: SubscriptionUploadRequest,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let db_device_id = state
         .device_service
         .get_or_create_device(auth.user_id, &device_id, None, None)
@@ -124,7 +71,7 @@ pub async fn upload_subscriptions(
     // Check for conflicts (same URL in both add and remove)
     for add_url in &sanitized_add {
         if !add_url.is_empty() && sanitized_remove.contains(add_url) {
-            return Err(reject::custom(AppError::BadRequest(format!(
+            return Err(reject::custom(AppError::Conflict(format!(
                 "URL cannot be both added and removed: {}",
                 add_url
             ))));
@@ -159,16 +106,11 @@ pub async fn upload_subscriptions(
 }
 
 pub async fn get_subscriptions_simple(
-    username: String,
     device_id: String,
     format: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
 ) -> Result<Box<dyn Reply + Send>, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let db_device_id = state
         .device_service
         .get_or_create_device(auth.user_id, &device_id, None, None)
@@ -194,8 +136,7 @@ pub async fn get_subscriptions_simple(
             "text/plain",
         )),
         _ => {
-            let msg = format!("Invalid format: {}", format);
-            return Err(reject::custom(AppError::Internal(msg)));
+            return Err(reject::custom(AppError::InvalidFormat(format)));
         }
     };
 
@@ -203,15 +144,10 @@ pub async fn get_subscriptions_simple(
 }
 
 pub async fn get_all_subscriptions_simple(
-    username: String,
     format: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
 ) -> Result<Box<dyn Reply + Send>, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let subscriptions = state
         .subscription_service
         .get_all_subscriptions(auth.user_id)
@@ -231,8 +167,7 @@ pub async fn get_all_subscriptions_simple(
             "text/plain",
         )),
         _ => {
-            let msg = format!("Invalid format: {}", format);
-            return Err(reject::custom(AppError::Internal(msg)));
+            return Err(reject::custom(AppError::InvalidFormat(format)));
         }
     };
 
@@ -240,17 +175,12 @@ pub async fn get_all_subscriptions_simple(
 }
 
 pub async fn upload_subscriptions_simple(
-    username: String,
     device_id: String,
     format: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
     body: Bytes,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let db_device_id = state
         .device_service
         .get_or_create_device(auth.user_id, &device_id, None, None)
@@ -286,8 +216,7 @@ pub async fn upload_subscriptions_simple(
             urls
         }
         _ => {
-            let msg = format!("Invalid format: {}", format);
-            return Err(reject::custom(AppError::Internal(msg)));
+            return Err(reject::custom(AppError::InvalidFormat(format)));
         }
     };
 

@@ -1,5 +1,10 @@
+use async_trait::async_trait;
+use sqlx::{Row, SqlitePool};
+
+use crate::error::AppResult;
 use crate::models::Device;
-use sqlx::{Error, Row, SqlitePool};
+
+use super::traits::DeviceRepositoryTrait;
 
 #[derive(Clone)]
 pub struct DeviceRepository {
@@ -10,19 +15,22 @@ impl DeviceRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn create(
+#[async_trait]
+impl DeviceRepositoryTrait for DeviceRepository {
+    async fn create(
         &self,
         user_id: i64,
         device_id: &str,
         caption: Option<&str>,
         device_type: Option<&str>,
-    ) -> Result<i64, Error> {
+    ) -> AppResult<i64> {
         let result = sqlx::query(
             r#"
             INSERT INTO devices (user_id, device_id, caption, type)
             VALUES (?, ?, ?, ?)
-            RETURNING id, user_id, device_id, caption, type, created_at, updated_at
+            RETURNING id
             "#,
         )
         .bind(user_id)
@@ -32,15 +40,11 @@ impl DeviceRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(result.get_unchecked::<i64, _>(0))
+        Ok(result.get::<i64, _>("id"))
     }
 
-    pub async fn find_by_device_id(
-        &self,
-        user_id: i64,
-        device_id: &str,
-    ) -> Result<Option<Device>, sqlx::Error> {
-        let result = sqlx::query(
+    async fn find_by_device_id(&self, user_id: i64, device_id: &str) -> AppResult<Option<Device>> {
+        let device = sqlx::query_as::<_, Device>(
             r#"
             SELECT 
                 id, user_id, device_id, caption, type, 
@@ -54,19 +58,11 @@ impl DeviceRepository {
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(result.map(|row| Device {
-            id: row.get_unchecked::<i64, _>(0),
-            user_id: row.get_unchecked::<i64, _>(1),
-            device_id: row.get_unchecked::<&str, _>(2).to_string(),
-            caption: row.get_unchecked::<Option<String>, _>(3),
-            r#type: row.get_unchecked::<Option<String>, _>(4),
-            created_at: row.get_unchecked(5),
-            updated_at: row.get_unchecked::<i64, _>(6),
-        }))
+        Ok(device)
     }
 
-    pub async fn list_by_user(&self, user_id: i64) -> Result<Vec<Device>, Error> {
-        let rows = sqlx::query(
+    async fn list_by_user(&self, user_id: i64) -> AppResult<Vec<Device>> {
+        let devices = sqlx::query_as::<_, Device>(
             r#"
             SELECT 
                 id, user_id, device_id, caption, type, 
@@ -80,17 +76,6 @@ impl DeviceRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| Device {
-                id: row.get_unchecked::<i64, _>(0),
-                user_id: row.get_unchecked::<i64, _>(1),
-                device_id: row.get_unchecked::<&str, _>(2).to_string(),
-                caption: row.get_unchecked::<Option<String>, _>(3),
-                r#type: row.get_unchecked::<Option<String>, _>(4),
-                created_at: row.get_unchecked(5),
-                updated_at: row.get_unchecked::<i64, _>(6),
-            })
-            .collect())
+        Ok(devices)
     }
 }

@@ -1,8 +1,7 @@
-use crate::{
-    error::{AppError, AppResult},
-    models::{EpisodeAction, EpisodeActionQuery},
-    repository::{EpisodeActionRepository, EpisodeActionWithDevice},
-};
+use crate::error::AppResult;
+use crate::models::{EpisodeAction, EpisodeActionQuery};
+use crate::repository::traits::EpisodeActionRepositoryTrait;
+use crate::repository::{EpisodeActionRepository, EpisodeActionWithDevice};
 
 #[derive(Clone)]
 pub struct EpisodeActionService {
@@ -19,10 +18,7 @@ impl EpisodeActionService {
         user_id: i64,
         query: EpisodeActionQuery,
     ) -> AppResult<Vec<EpisodeActionWithDevice>> {
-        self.action_repo
-            .list(user_id, query)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+        self.action_repo.list(user_id, query).await
     }
 
     pub async fn get_actions_since(
@@ -38,18 +34,12 @@ impl EpisodeActionService {
             device: device_id.map(|id| id.to_string()),
             aggregated: None,
         };
-        self.action_repo
-            .list(user_id, query)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+        self.action_repo.list(user_id, query).await
     }
 
     pub async fn upload_episode_actions(&self, actions: Vec<EpisodeAction>) -> AppResult<()> {
         let count = actions.len();
-        self.action_repo
-            .upload(actions)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        self.action_repo.upload(actions).await?;
         tracing::info!("Uploaded {} episode actions", count);
         Ok(())
     }

@@ -1,17 +1,15 @@
-use serde::Deserialize;
 use warp::{
     http::header::{HeaderValue, SET_COOKIE},
     reply::{json, with_header, Reply},
     Rejection,
 };
 
-use crate::{middleware::AuthContext, state::AppState};
-
-#[derive(Debug, Deserialize)]
-pub struct LogoutRequest {
-    #[serde(default)]
-    _session_id: Option<String>,
-}
+use crate::{
+    constants::{SESSION_COOKIE_NAME, SESSION_DURATION_SECS},
+    middleware::AuthContext,
+    models::LogoutRequest,
+    state::AppState,
+};
 
 pub async fn login(
     _username: String,
@@ -34,17 +32,16 @@ pub async fn login(
         "status": "ok",
     }));
 
-    // Set session cookie (30 days, HttpOnly, SameSite=Lax)
+    // Set session cookie (HttpOnly, SameSite=Lax)
     let cookie = format!(
-        "sessionid={}; Max-Age={}; Path=/; HttpOnly; SameSite=Lax",
-        session_id,
-        30 * 24 * 60 * 60 // 30 days in seconds
+        "{}={}; Max-Age={}; Path=/; HttpOnly; SameSite=Lax",
+        SESSION_COOKIE_NAME, session_id, SESSION_DURATION_SECS
     );
 
     Ok(with_header(
         response,
         SET_COOKIE,
-        HeaderValue::from_str(&cookie).unwrap(),
+        HeaderValue::from_str(&cookie).expect("cookie contains only valid header characters"),
     ))
 }
 
@@ -71,12 +68,15 @@ pub async fn logout(
     }));
 
     // Clear session cookie
-    let cookie = "sessionid=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax";
+    let cookie = format!(
+        "{}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax",
+        SESSION_COOKIE_NAME
+    );
 
     Ok(with_header(
         response,
         SET_COOKIE,
-        HeaderValue::from_str(cookie).unwrap(),
+        HeaderValue::from_str(&cookie).expect("valid cookie header"),
     ))
 }
 

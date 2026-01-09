@@ -1,6 +1,11 @@
-use crate::models::{EpisodeAction, EpisodeActionQuery};
+use async_trait::async_trait;
 use serde::Serialize;
 use sqlx::{FromRow, SqlitePool};
+
+use crate::error::AppResult;
+use crate::models::{EpisodeAction, EpisodeActionQuery};
+
+use super::traits::EpisodeActionRepositoryTrait;
 
 #[derive(Clone)]
 pub struct EpisodeActionRepository {
@@ -28,12 +33,15 @@ impl EpisodeActionRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn list(
+#[async_trait]
+impl EpisodeActionRepositoryTrait for EpisodeActionRepository {
+    async fn list(
         &self,
         user_id: i64,
         query: EpisodeActionQuery,
-    ) -> Result<Vec<EpisodeActionWithDevice>, sqlx::Error> {
+    ) -> AppResult<Vec<EpisodeActionWithDevice>> {
         let mut sql = String::from(
             r#"
             SELECT
@@ -75,10 +83,11 @@ impl EpisodeActionRepository {
             q = q.bind(device);
         }
 
-        q.fetch_all(&self.pool).await
+        let results = q.fetch_all(&self.pool).await?;
+        Ok(results)
     }
 
-    pub async fn upload(&self, actions: Vec<EpisodeAction>) -> Result<(), sqlx::Error> {
+    async fn upload(&self, actions: Vec<EpisodeAction>) -> AppResult<()> {
         let mut tx = self.pool.begin().await?;
 
         for action in actions {

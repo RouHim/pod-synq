@@ -1,7 +1,9 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::error::{AppError, AppResult};
 use crate::models::DeviceSyncStatus;
+use crate::repository::traits::{DeviceRepositoryTrait, DeviceSyncRepositoryTrait};
 use crate::repository::{DeviceRepository, DeviceSyncRepository};
-use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
 pub struct DeviceSyncService {
@@ -118,12 +120,12 @@ impl DeviceSyncService {
             }
 
             // Determine the target group
-            let target_group_id = if existing_groups.is_empty() {
+            let target_group_id = if let Some(&first_group_id) = existing_groups.keys().next() {
+                // Use the first existing group as target
+                first_group_id
+            } else {
                 // No existing groups - create a new one
                 self.device_sync_repo.create_group(user_id).await?
-            } else {
-                // Use the first existing group as target
-                *existing_groups.keys().next().unwrap()
             };
 
             // Merge other groups into the target group

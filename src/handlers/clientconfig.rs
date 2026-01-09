@@ -1,21 +1,12 @@
-use serde::Serialize;
 use warp::{reply::json, Rejection, Reply};
 
-#[derive(Debug, Serialize)]
-pub struct ClientConfig {
-    pub mygpo: MyGpoConfig,
-    pub update_timeout: i64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct MyGpoConfig {
-    pub base_url: String,
-}
+use crate::constants::CLIENT_UPDATE_TIMEOUT_SECS;
+use crate::models::{ClientConfig, MyGpoConfig};
 
 pub async fn get_client_config(base_url: String) -> Result<impl Reply, Rejection> {
     let config = ClientConfig {
         mygpo: MyGpoConfig { base_url },
-        update_timeout: 604800, // 7 days in seconds
+        update_timeout: CLIENT_UPDATE_TIMEOUT_SECS,
     };
 
     Ok(json(&config))

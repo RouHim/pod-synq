@@ -16,6 +16,15 @@ pub enum AppError {
     #[error("Authorization failed")]
     Authorization,
 
+    #[error("Device not found: {0}")]
+    DeviceNotFound(String),
+
+    #[error("Invalid format: {0}")]
+    InvalidFormat(String),
+
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
     #[error("Bad request: {0}")]
     BadRequest(String),
 
@@ -45,6 +54,24 @@ impl Reply for AppError {
             AppError::Authorization => {
                 tracing::warn!("Authorization failed");
                 (StatusCode::FORBIDDEN, "Authorization failed".to_string())
+            }
+            AppError::DeviceNotFound(device_id) => {
+                tracing::warn!("Device not found: {}", device_id);
+                (
+                    StatusCode::NOT_FOUND,
+                    format!("Device not found: {}", device_id),
+                )
+            }
+            AppError::InvalidFormat(format) => {
+                tracing::warn!("Invalid format: {}", format);
+                (
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid format: {}", format),
+                )
+            }
+            AppError::Conflict(msg) => {
+                tracing::warn!("Conflict: {}", msg);
+                (StatusCode::CONFLICT, msg)
             }
             AppError::BadRequest(msg) => {
                 tracing::warn!("Bad request: {}", msg);
@@ -78,6 +105,15 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert
                 "Authentication failed".to_string(),
             ),
             AppError::Authorization => (StatusCode::FORBIDDEN, "Authorization failed".to_string()),
+            AppError::DeviceNotFound(device_id) => (
+                StatusCode::NOT_FOUND,
+                format!("Device not found: {}", device_id),
+            ),
+            AppError::InvalidFormat(format) => (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid format: {}", format),
+            ),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,

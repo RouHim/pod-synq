@@ -1,8 +1,7 @@
-use crate::{
-    error::{AppError, AppResult},
-    models::SubscriptionChanges,
-    repository::SubscriptionRepository,
-};
+use crate::error::AppResult;
+use crate::models::SubscriptionChanges;
+use crate::repository::traits::SubscriptionRepositoryTrait;
+use crate::repository::SubscriptionRepository;
 
 #[derive(Clone)]
 pub struct SubscriptionService {
@@ -15,21 +14,11 @@ impl SubscriptionService {
     }
 
     pub async fn get_subscriptions(&self, user_id: i64, device_id: i64) -> AppResult<Vec<String>> {
-        let subs = self
-            .sub_repo
-            .list_by_device(user_id, device_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(subs)
+        self.sub_repo.list_by_device(user_id, device_id).await
     }
 
     pub async fn get_all_subscriptions(&self, user_id: i64) -> AppResult<Vec<String>> {
-        let subs = self
-            .sub_repo
-            .list_all_urls_by_user(user_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(subs)
+        self.sub_repo.list_all_urls_by_user(user_id).await
     }
 
     pub async fn get_changes_since(
@@ -41,7 +30,6 @@ impl SubscriptionService {
         self.sub_repo
             .get_changes_since(user_id, device_id, since)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
     }
 
     pub async fn set_subscriptions(
@@ -53,8 +41,6 @@ impl SubscriptionService {
         self.sub_repo
             .set_subscriptions(user_id, device_id, podcast_urls)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(())
     }
 
     pub async fn upload_changes(
@@ -66,8 +52,7 @@ impl SubscriptionService {
         let count = changes.add.len() + changes.remove.len();
         self.sub_repo
             .apply_changes(user_id, device_id, changes)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
         tracing::info!(
             "Uploaded {} subscription changes for device {}",
             count,
@@ -81,9 +66,6 @@ impl SubscriptionService {
         user_id: i64,
         device_id: Option<i64>,
     ) -> AppResult<i64> {
-        self.sub_repo
-            .count(user_id, device_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+        self.sub_repo.count(user_id, device_id).await
     }
 }

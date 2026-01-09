@@ -1,5 +1,6 @@
 use crate::error::AppResult;
 use crate::models::{FavoriteMetadata, FavoriteResponse};
+use crate::repository::traits::FavoriteRepositoryTrait;
 use crate::repository::FavoriteRepository;
 
 #[derive(Clone)]
@@ -40,12 +41,5 @@ impl FavoriteService {
         let responses: Vec<FavoriteResponse> =
             favorites.iter().map(|f| f.to_response(base_url)).collect();
         Ok(responses)
-    }
-
-    /// Check if an episode is favorited
-    #[allow(dead_code)]
-    pub async fn is_favorite(&self, user_id: i64, episode_url: &str) -> AppResult<bool> {
-        let is_fav = self.favorite_repo.is_favorite(user_id, episode_url).await?;
-        Ok(is_fav)
     }
 }

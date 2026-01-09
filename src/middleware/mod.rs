@@ -1,3 +1,3 @@
 pub mod auth;
 
-pub use auth::{with_auth, AuthContext, AuthService};
+pub use auth::{with_auth, AuthContext, AuthService, AuthorizedContext};

@@ -1,51 +1,19 @@
-use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
 use warp::{reject, reply::json, Rejection, Reply};
 
 use crate::error::AppError;
-use crate::middleware::AuthContext;
-use crate::models::{EpisodeAction, EpisodeActionQuery};
+use crate::middleware::AuthorizedContext;
+use crate::models::{
+    EpisodeAction, EpisodeActionQuery, EpisodeActionQueryParams, EpisodeActionResponse,
+    EpisodeActionUpload, EpisodeActionsResult,
+};
 use crate::state::AppState;
-
-#[derive(Debug, Deserialize)]
-pub struct EpisodeActionQueryParams {
-    pub since: Option<i64>,
-    pub podcast: Option<String>,
-    pub device: Option<String>,
-    pub aggregated: Option<bool>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct EpisodeActionResponse {
-    pub podcast: String,
-    pub episode: String,
-    pub action: String,
-    pub timestamp: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub started: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub position: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total: Option<i64>,
-    pub device: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct EpisodeActionsResult {
-    pub actions: Vec<EpisodeActionResponse>,
-    pub timestamp: i64,
-}
+use crate::utils::unix_timestamp;
 
 pub async fn get_episode_actions(
-    username: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     params: EpisodeActionQueryParams,
     state: AppState,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(reject::custom(AppError::Authorization));
-    }
-
     let query = EpisodeActionQuery {
         since: params.since,
         podcast: params.podcast.clone(),
@@ -59,10 +27,7 @@ pub async fn get_episode_actions(
         .await
         .map_err(|e| reject::custom(AppError::Internal(e.to_string())))?;
 
-    let current_timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let current_timestamp = unix_timestamp();
 
     let response_actions: Vec<EpisodeActionResponse> = actions
         .into_iter()
@@ -86,28 +51,11 @@ pub async fn get_episode_actions(
     Ok(json(&result))
 }
 
-#[derive(Debug, Deserialize)]
-pub struct EpisodeActionUpload {
-    pub podcast: String,
-    pub episode: String,
-    pub device: String,
-    pub action: String,
-    pub timestamp: i64,
-    pub started: Option<i64>,
-    pub position: Option<i64>,
-    pub total: Option<i64>,
-}
-
 pub async fn upload_episode_actions(
-    username: String,
-    auth: AuthContext,
+    auth: AuthorizedContext,
     state: AppState,
     actions: Vec<EpisodeActionUpload>,
 ) -> Result<impl Reply, Rejection> {
-    if username != auth.username {
-        return Err(warp::reject::custom(crate::error::AppError::Authorization));
-    }
-
     let mut resolved_actions = Vec::new();
     let mut all_update_urls = Vec::new();
 

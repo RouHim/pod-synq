@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::config::Config;
 use crate::error::AppResult;
 use crate::models::PodcastMetadata;
+use crate::repository::traits::PodcastRepositoryTrait;
 use crate::repository::PodcastRepository;
 
 pub struct PodcastService {

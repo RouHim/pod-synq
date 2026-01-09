@@ -1,5 +1,10 @@
-use crate::models::Session;
+use async_trait::async_trait;
 use sqlx::SqlitePool;
+
+use crate::error::AppResult;
+use crate::models::Session;
+
+use super::traits::SessionRepositoryTrait;
 
 #[derive(Clone)]
 pub struct SessionRepository {
@@ -10,8 +15,11 @@ impl SessionRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn create(&self, id: &str, user_id: i64, expires_at: i64) -> Result<(), sqlx::Error> {
+#[async_trait]
+impl SessionRepositoryTrait for SessionRepository {
+    async fn create(&self, id: &str, user_id: i64, expires_at: i64) -> AppResult<()> {
         sqlx::query(
             r#"
             INSERT INTO sessions (id, user_id, expires_at)
@@ -26,8 +34,8 @@ impl SessionRepository {
         Ok(())
     }
 
-    pub async fn find_by_id(&self, id: &str) -> Result<Option<Session>, sqlx::Error> {
-        sqlx::query_as::<_, Session>(
+    async fn find_by_id(&self, id: &str) -> AppResult<Option<Session>> {
+        let session = sqlx::query_as::<_, Session>(
             r#"
             SELECT id, user_id, expires_at, created_at
             FROM sessions
@@ -36,10 +44,12 @@ impl SessionRepository {
         )
         .bind(id)
         .fetch_optional(&self.pool)
-        .await
+        .await?;
+
+        Ok(session)
     }
 
-    pub async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
+    async fn delete(&self, id: &str) -> AppResult<()> {
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
@@ -47,8 +57,7 @@ impl SessionRepository {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub async fn delete_expired(&self, current_time: i64) -> Result<u64, sqlx::Error> {
+    async fn delete_expired(&self, current_time: i64) -> AppResult<u64> {
         let result = sqlx::query("DELETE FROM sessions WHERE expires_at < ?")
             .bind(current_time)
             .execute(&self.pool)

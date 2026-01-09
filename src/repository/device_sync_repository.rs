@@ -1,4 +1,9 @@
+use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
+
+use crate::error::AppResult;
+
+use super::traits::DeviceSyncRepositoryTrait;
 
 #[derive(Clone)]
 pub struct DeviceSyncRepository {
@@ -9,8 +14,11 @@ impl DeviceSyncRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    pub async fn create_group(&self, user_id: i64) -> Result<i64, sqlx::Error> {
+#[async_trait]
+impl DeviceSyncRepositoryTrait for DeviceSyncRepository {
+    async fn create_group(&self, user_id: i64) -> AppResult<i64> {
         let result = sqlx::query(
             r#"
             INSERT INTO device_sync_groups (user_id)
@@ -25,11 +33,7 @@ impl DeviceSyncRepository {
         Ok(result.get(0))
     }
 
-    pub async fn add_device_to_group(
-        &self,
-        group_id: i64,
-        device_id: i64,
-    ) -> Result<(), sqlx::Error> {
+    async fn add_device_to_group(&self, group_id: i64, device_id: i64) -> AppResult<()> {
         sqlx::query(
             r#"
             INSERT INTO device_sync_members (sync_group_id, device_id)
@@ -43,7 +47,7 @@ impl DeviceSyncRepository {
         Ok(())
     }
 
-    pub async fn remove_device_from_group(&self, device_id: i64) -> Result<(), sqlx::Error> {
+    async fn remove_device_from_group(&self, device_id: i64) -> AppResult<()> {
         sqlx::query("DELETE FROM device_sync_members WHERE device_id = ?")
             .bind(device_id)
             .execute(&self.pool)
@@ -51,7 +55,7 @@ impl DeviceSyncRepository {
         Ok(())
     }
 
-    pub async fn get_device_group(&self, device_id: i64) -> Result<Option<i64>, sqlx::Error> {
+    async fn get_device_group(&self, device_id: i64) -> AppResult<Option<i64>> {
         let result = sqlx::query(
             r#"
             SELECT sync_group_id
@@ -66,7 +70,7 @@ impl DeviceSyncRepository {
         Ok(result.map(|row| row.get(0)))
     }
 
-    pub async fn get_group_devices(&self, group_id: i64) -> Result<Vec<i64>, sqlx::Error> {
+    async fn get_group_devices(&self, group_id: i64) -> AppResult<Vec<i64>> {
         let rows = sqlx::query(
             r#"
             SELECT device_id
@@ -81,7 +85,7 @@ impl DeviceSyncRepository {
         Ok(rows.iter().map(|row| row.get(0)).collect())
     }
 
-    pub async fn get_user_groups(&self, user_id: i64) -> Result<Vec<i64>, sqlx::Error> {
+    async fn get_user_groups(&self, user_id: i64) -> AppResult<Vec<i64>> {
         let rows = sqlx::query(
             r#"
             SELECT id
@@ -96,7 +100,7 @@ impl DeviceSyncRepository {
         Ok(rows.iter().map(|row| row.get(0)).collect())
     }
 
-    pub async fn delete_group(&self, group_id: i64) -> Result<(), sqlx::Error> {
+    async fn delete_group(&self, group_id: i64) -> AppResult<()> {
         sqlx::query("DELETE FROM device_sync_groups WHERE id = ?")
             .bind(group_id)
             .execute(&self.pool)
@@ -104,11 +108,7 @@ impl DeviceSyncRepository {
         Ok(())
     }
 
-    pub async fn merge_groups(
-        &self,
-        target_group_id: i64,
-        source_group_id: i64,
-    ) -> Result<(), sqlx::Error> {
+    async fn merge_groups(&self, target_group_id: i64, source_group_id: i64) -> AppResult<()> {
         // Move all devices from source to target
         sqlx::query(
             r#"

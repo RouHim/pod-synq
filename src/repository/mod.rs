@@ -6,6 +6,7 @@ pub mod podcast_repository;
 pub mod session_repository;
 pub mod setting_repository;
 pub mod subscription_repository;
+pub mod traits;
 pub mod user_repository;
 
 pub use device_repository::DeviceRepository;
@@ -16,4 +17,5 @@ pub use podcast_repository::PodcastRepository;
 pub use session_repository::SessionRepository;
 pub use setting_repository::{SettingKey, SettingRepository};
 pub use subscription_repository::SubscriptionRepository;
+pub use traits::*;
 pub use user_repository::UserRepository;

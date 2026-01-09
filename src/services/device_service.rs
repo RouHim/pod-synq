@@ -1,7 +1,7 @@
-use crate::{
-    error::{AppError, AppResult},
-    repository::DeviceRepository,
-};
+use crate::error::AppResult;
+use crate::models::Device;
+use crate::repository::traits::DeviceRepositoryTrait;
+use crate::repository::DeviceRepository;
 
 #[derive(Clone)]
 pub struct DeviceService {
@@ -13,16 +13,11 @@ impl DeviceService {
         Self { device_repo }
     }
 
-    pub async fn find_by_device_id(
-        &self,
-        user_id: i64,
-        device_id: &str,
-    ) -> AppResult<crate::models::Device> {
+    pub async fn find_by_device_id(&self, user_id: i64, device_id: &str) -> AppResult<Device> {
         self.device_repo
             .find_by_device_id(user_id, device_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .ok_or_else(|| AppError::Internal(format!("Device {} not found", device_id)))
+            .await?
+            .ok_or_else(|| crate::error::AppError::DeviceNotFound(device_id.to_string()))
     }
 
     pub async fn get_or_create_device(
@@ -52,10 +47,7 @@ impl DeviceService {
         Ok(device_id)
     }
 
-    pub async fn list_user_devices(&self, user_id: i64) -> AppResult<Vec<crate::models::Device>> {
-        self.device_repo
-            .list_by_user(user_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+    pub async fn list_user_devices(&self, user_id: i64) -> AppResult<Vec<Device>> {
+        self.device_repo.list_by_user(user_id).await
     }
 }

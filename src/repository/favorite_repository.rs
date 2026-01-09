@@ -1,5 +1,10 @@
-use crate::models::{FavoriteEpisode, FavoriteMetadata};
+use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
+
+use crate::error::AppResult;
+use crate::models::{FavoriteEpisode, FavoriteMetadata};
+
+use super::traits::FavoriteRepositoryTrait;
 
 #[derive(Clone)]
 pub struct FavoriteRepository {
@@ -10,13 +15,11 @@ impl FavoriteRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+}
 
-    /// Add an episode to favorites
-    pub async fn add_favorite(
-        &self,
-        user_id: i64,
-        metadata: &FavoriteMetadata<'_>,
-    ) -> Result<i64, sqlx::Error> {
+#[async_trait]
+impl FavoriteRepositoryTrait for FavoriteRepository {
+    async fn add_favorite(&self, user_id: i64, metadata: &FavoriteMetadata<'_>) -> AppResult<i64> {
         let result = sqlx::query(
             r#"
             INSERT INTO favorite_episodes (user_id, podcast_url, episode_url, title, podcast_title, description, website, released)
@@ -45,12 +48,7 @@ impl FavoriteRepository {
         Ok(result.get(0))
     }
 
-    /// Remove an episode from favorites
-    pub async fn remove_favorite(
-        &self,
-        user_id: i64,
-        episode_url: &str,
-    ) -> Result<(), sqlx::Error> {
+    async fn remove_favorite(&self, user_id: i64, episode_url: &str) -> AppResult<()> {
         sqlx::query(
             r#"
             DELETE FROM favorite_episodes
@@ -65,11 +63,7 @@ impl FavoriteRepository {
         Ok(())
     }
 
-    /// Get all favorites for a user
-    pub async fn get_user_favorites(
-        &self,
-        user_id: i64,
-    ) -> Result<Vec<FavoriteEpisode>, sqlx::Error> {
+    async fn get_user_favorites(&self, user_id: i64) -> AppResult<Vec<FavoriteEpisode>> {
         let favorites = sqlx::query_as::<_, FavoriteEpisode>(
             r#"
             SELECT id, user_id, podcast_url, episode_url, title, podcast_title, description, website, released, created_at
@@ -83,24 +77,5 @@ impl FavoriteRepository {
         .await?;
 
         Ok(favorites)
-    }
-
-    /// Check if an episode is favorited
-    #[allow(dead_code)]
-    pub async fn is_favorite(&self, user_id: i64, episode_url: &str) -> Result<bool, sqlx::Error> {
-        let result = sqlx::query(
-            r#"
-            SELECT COUNT(*) as count
-            FROM favorite_episodes
-            WHERE user_id = ? AND episode_url = ?
-            "#,
-        )
-        .bind(user_id)
-        .bind(episode_url)
-        .fetch_one(&self.pool)
-        .await?;
-
-        let count: i64 = result.get("count");
-        Ok(count > 0)
     }
 }
