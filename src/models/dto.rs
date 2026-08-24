@@ -184,3 +184,70 @@ pub struct SubscriptionUploadRequest {
 pub struct SubscriptionQueryParams {
     pub since: Option<i64>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given an integer Unix epoch timestamp, deserialization keeps the
+    /// integer value unchanged.
+    #[test]
+    fn deserializes_integer_timestamp_as_epoch_seconds() {
+        let json = r#"{"podcast":"p","episode":"e","action":"new","timestamp":1700000000}"#;
+
+        let upload: EpisodeActionUpload =
+            serde_json::from_str(json).expect("integer timestamp must deserialize");
+
+        assert_eq!(upload.timestamp, 1_700_000_000);
+    }
+
+    /// Given an ISO 8601 string without offset, deserialization parses it as
+    /// UTC and yields the matching epoch seconds.
+    #[test]
+    fn deserializes_iso_string_without_offset_as_utc_epoch_seconds() {
+        let json =
+            r#"{"podcast":"p","episode":"e","action":"new","timestamp":"2023-11-14T22:13:20"}"#;
+
+        let upload: EpisodeActionUpload =
+            serde_json::from_str(json).expect("naive ISO timestamp must deserialize");
+
+        assert_eq!(upload.timestamp, 1_700_000_000);
+    }
+
+    /// Given an RFC 3339 string with a UTC offset, deserialization converts
+    /// it to the correct epoch seconds.
+    #[test]
+    fn deserializes_rfc3339_string_with_offset_to_epoch_seconds() {
+        let json = r#"{"podcast":"p","episode":"e","action":"new","timestamp":"2023-11-14T23:13:20+01:00"}"#;
+
+        let upload: EpisodeActionUpload =
+            serde_json::from_str(json).expect("RFC 3339 timestamp must deserialize");
+
+        assert_eq!(upload.timestamp, 1_700_000_000);
+    }
+
+    /// Given a null timestamp, deserialization fails instead of defaulting.
+    #[test]
+    fn rejects_null_timestamp_with_deserialization_error() {
+        let json = r#"{"podcast":"p","episode":"e","action":"new","timestamp":null}"#;
+
+        let result: Result<EpisodeActionUpload, _> = serde_json::from_str(json);
+
+        assert!(result.is_err(), "null timestamp must not deserialize");
+    }
+
+    /// Given a payload omitting optional fields, `device` defaults to an
+    /// empty string and started/position/total remain None.
+    #[test]
+    fn defaults_optional_fields_when_omitted() {
+        let json = r#"{"podcast":"p","episode":"e","action":"new","timestamp":1700000000}"#;
+
+        let upload: EpisodeActionUpload =
+            serde_json::from_str(json).expect("payload without optionals must deserialize");
+
+        assert_eq!(upload.device, "");
+        assert!(upload.started.is_none());
+        assert!(upload.position.is_none());
+        assert!(upload.total.is_none());
+    }
+}
