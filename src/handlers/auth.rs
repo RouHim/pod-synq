@@ -89,3 +89,50 @@ fn extract_session_from_cookie(cookie_header: &str) -> Option<String> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_session_cookie_yields_value() {
+        assert_eq!(
+            extract_session_from_cookie("sessionid=abc123"),
+            Some("abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn session_cookie_among_multiple_cookies_is_found() {
+        assert_eq!(
+            extract_session_from_cookie("other=x; sessionid=abc123"),
+            Some("abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn cookies_without_sessionid_yield_none() {
+        assert_eq!(extract_session_from_cookie("foo=bar"), None);
+    }
+
+    #[test]
+    fn empty_cookie_header_yields_none() {
+        assert_eq!(extract_session_from_cookie(""), None);
+    }
+
+    #[test]
+    fn value_containing_equals_sign_is_preserved_in_full() {
+        assert_eq!(
+            extract_session_from_cookie("sessionid=a=b"),
+            Some("a=b".to_string())
+        );
+    }
+
+    #[test]
+    fn surrounding_whitespace_on_pair_is_trimmed() {
+        assert_eq!(
+            extract_session_from_cookie(" sessionid=abc "),
+            Some("abc".to_string())
+        );
+    }
+}
