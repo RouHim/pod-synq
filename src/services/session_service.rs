@@ -56,17 +56,4 @@ impl SessionService {
         tracing::info!("Deleted session {}", session_id);
         Ok(())
     }
-
-    #[allow(dead_code)]
-    pub async fn cleanup_expired_sessions(&self) -> AppResult<u64> {
-        let current_time = unix_timestamp();
-
-        let count = self.session_repo.delete_expired(current_time).await?;
-
-        if count > 0 {
-            tracing::info!("Cleaned up {} expired sessions", count);
-        }
-
-        Ok(count)
-    }
 }

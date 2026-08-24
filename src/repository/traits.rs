@@ -38,7 +38,6 @@ pub trait SessionRepositoryTrait: Send + Sync {
     async fn create(&self, id: &str, user_id: i64, expires_at: i64) -> AppResult<()>;
     async fn find_by_id(&self, id: &str) -> AppResult<Option<Session>>;
     async fn delete(&self, id: &str) -> AppResult<()>;
-    async fn delete_expired(&self, current_time: i64) -> AppResult<u64>;
 }
 
 /// Trait for subscription repository operations

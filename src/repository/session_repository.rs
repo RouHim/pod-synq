@@ -56,12 +56,4 @@ impl SessionRepositoryTrait for SessionRepository {
             .await?;
         Ok(())
     }
-
-    async fn delete_expired(&self, current_time: i64) -> AppResult<u64> {
-        let result = sqlx::query("DELETE FROM sessions WHERE expires_at < ?")
-            .bind(current_time)
-            .execute(&self.pool)
-            .await?;
-        Ok(result.rows_affected())
-    }
 }
