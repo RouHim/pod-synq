@@ -23,6 +23,31 @@ fn authorize(auth: AuthContext, username: &str) -> Result<AuthorizedContext, war
     })
 }
 
+/// Parses the request tail after the fixed route prefix into a single identifier.
+/// Accepts `id`, `id.json`, and `id/.json`; rejects deeper paths.
+async fn parse_id_tail(tail: warp::path::Tail) -> Result<String, warp::Rejection> {
+    let id = tail.as_str();
+    let id = id.strip_suffix(".json").unwrap_or(id);
+    let id = id.strip_suffix('/').unwrap_or(id);
+    if id.is_empty() || id.contains('/') {
+        return Err(warp::reject::not_found());
+    }
+    Ok(id.to_string())
+}
+
+/// Validates the tail of a single-identifier endpoint: nothing or `.json`.
+async fn validate_unit_tail(tail: warp::path::Tail) -> Result<(), warp::Rejection> {
+    match tail.as_str() {
+        "" | ".json" => Ok(()),
+        _ => Err(warp::reject::not_found()),
+    }
+}
+
+/// Strips a trailing `.json` extension from a captured path segment.
+fn strip_json_ext(segment: &str) -> &str {
+    segment.strip_suffix(".json").unwrap_or(segment)
+}
+
 pub fn create_routes(
     auth_service: AuthService,
     state: AppState,
@@ -62,123 +87,135 @@ pub fn create_routes(
         .and_then(auth::logout);
 
     let list_devices = warp::get()
-        .and(warp::path!("api" / "2" / "devices" / String))
-        .and(warp::path::end())
+        .and(warp::path!("api" / "2" / "devices" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and_then(
-            |username_with_ext: String, auth: AuthContext, state| async move {
-                let username = username_with_ext.trim_end_matches(".json");
-                let auth = authorize(auth, username)?;
+            |username: String, tail, auth: AuthContext, state| async move {
+                validate_unit_tail(tail).await?;
+                let auth = authorize(auth, strip_json_ext(&username))?;
                 devices::list_devices(auth, state).await
             },
         );
 
     let update_device = warp::post()
-        .and(warp::path!("api" / "2" / "devices" / String / String))
-        .and(warp::path::end())
+        .and(warp::path!("api" / "2" / "devices" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and(warp::body::json())
         .and_then(
-            |username: String, device_id_with_ext: String, auth: AuthContext, state, req| async move {
-                let username = username.trim_end_matches(".json");
-                let device_id = device_id_with_ext.trim_end_matches(".json");
-                let auth = authorize(auth, username)?;
-                devices::update_device(device_id.to_string(), auth, state, req).await
+            |username: String, tail, auth: AuthContext, state, req| async move {
+                let device_id = parse_id_tail(tail).await?;
+                let auth = authorize(auth, &username)?;
+                devices::update_device(device_id, auth, state, req).await
             },
         );
 
     let get_device_updates = warp::get()
-        .and(warp::path!(
-            "api" / "2" / "updates" / String / String / ".json"
-        ))
+        .and(warp::path!("api" / "2" / "updates" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(warp::query::<UpdatesQueryParams>())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and_then(
-            |username: String, device_id: String, params, auth: AuthContext, state| async move {
+            |username: String, tail, params, auth: AuthContext, state| async move {
+                let device_id = parse_id_tail(tail).await?;
                 let auth = authorize(auth, &username)?;
                 devices::get_device_updates(device_id, params, auth, state).await
             },
         );
 
     let get_subscriptions = warp::get()
-        .and(warp::path!(
-            "api" / "2" / "subscriptions" / String / String / ".json"
-        ))
+        .and(warp::path!("api" / "2" / "subscriptions" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(warp::query::<SubscriptionQueryParams>())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and_then(
-            |username: String, device_id: String, params, auth: AuthContext, state| async move {
+            |username: String, tail, params, auth: AuthContext, state| async move {
+                let device_id = parse_id_tail(tail).await?;
                 let auth = authorize(auth, &username)?;
                 subscriptions::get_subscriptions(device_id, params, auth, state).await
             },
         );
 
     let upload_subscriptions = warp::post()
-        .and(warp::path!(
-            "api" / "2" / "subscriptions" / String / String / ".json"
-        ))
+        .and(warp::path!("api" / "2" / "subscriptions" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and(warp::body::json())
         .and_then(
-            |username: String, device_id: String, auth: AuthContext, state, req| async move {
+            |username: String, tail, auth: AuthContext, state, req| async move {
+                let device_id = parse_id_tail(tail).await?;
                 let auth = authorize(auth, &username)?;
                 subscriptions::upload_subscriptions(device_id, auth, state, req).await
             },
         );
 
     let get_episode_actions = warp::get()
-        .and(warp::path!("api" / "2" / "episodes" / String / ".json"))
+        .and(warp::path!("api" / "2" / "episodes" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(warp::query::<EpisodeActionQueryParams>())
         .and(state_filter.clone())
         .and_then(
-            |username: String, auth: AuthContext, params, state| async move {
-                let auth = authorize(auth, &username)?;
+            |username: String, tail, auth: AuthContext, params, state| async move {
+                validate_unit_tail(tail).await?;
+                let auth = authorize(auth, strip_json_ext(&username))?;
                 episodes::get_episode_actions(auth, params, state).await
             },
         );
 
     let upload_episode_actions = warp::post()
-        .and(warp::path!("api" / "2" / "episodes" / String / ".json"))
+        .and(warp::path!("api" / "2" / "episodes" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and(warp::body::json())
         .and_then(
-            |username: String, auth: AuthContext, state, actions| async move {
-                let auth = authorize(auth, &username)?;
+            |username: String, tail, auth: AuthContext, state, actions| async move {
+                validate_unit_tail(tail).await?;
+                let auth = authorize(auth, strip_json_ext(&username))?;
                 episodes::upload_episode_actions(auth, state, actions).await
             },
         );
 
     let get_settings = warp::get()
-        .and(warp::path!(
-            "api" / "2" / "settings" / String / String / ".json"
-        ))
+        .and(warp::path!("api" / "2" / "settings" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(warp::query::<SettingsQueryParams>())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and_then(
-            |username: String, scope: String, params, auth: AuthContext, state| async move {
+            |username: String, tail, params, auth: AuthContext, state| async move {
+                let scope = parse_id_tail(tail).await?;
                 let auth = authorize(auth, &username)?;
                 settings::get_settings(scope, params, auth, state).await
             },
         );
 
     let save_settings = warp::post()
-        .and(warp::path!(
-            "api" / "2" / "settings" / String / String / ".json"
-        ))
+        .and(warp::path!("api" / "2" / "settings" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(warp::query::<SettingsQueryParams>())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and(warp::body::json())
         .and_then(
-            |username: String, scope: String, params, auth: AuthContext, state, req| async move {
+            |username: String, tail, params, auth: AuthContext, state, req| async move {
+                let scope = parse_id_tail(tail).await?;
                 let auth = authorize(auth, &username)?;
                 settings::save_settings(scope, params, auth, state, req).await
             },
@@ -186,34 +223,45 @@ pub fn create_routes(
 
     let config_clone = config.clone();
     let get_favorites = warp::get()
-        .and(warp::path!("api" / "2" / "favorites" / String / ".json"))
+        .and(warp::path!("api" / "2" / "favorites" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and(warp::any().map(move || config_clone.clone()))
         .and_then(
-            |username: String, auth: AuthContext, state, config| async move {
-                let auth = authorize(auth, &username)?;
+            |username: String, tail, auth: AuthContext, state, config| async move {
+                validate_unit_tail(tail).await?;
+                let auth = authorize(auth, strip_json_ext(&username))?;
                 favorites::get_favorites(auth, state, config).await
             },
         );
 
     let get_sync_devices = warp::get()
-        .and(warp::path!("api" / "2" / "sync-devices" / String / ".json"))
+        .and(warp::path!("api" / "2" / "sync-devices" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(state_filter.clone())
-        .and_then(|username: String, auth: AuthContext, state| async move {
-            let auth = authorize(auth, &username)?;
-            device_sync::get_sync_status(auth, state).await
-        });
+        .and_then(
+            |username: String, tail, auth: AuthContext, state| async move {
+                validate_unit_tail(tail).await?;
+                let auth = authorize(auth, strip_json_ext(&username))?;
+                device_sync::get_sync_status(auth, state).await
+            },
+        );
 
     let update_sync_devices = warp::post()
-        .and(warp::path!("api" / "2" / "sync-devices" / String / ".json"))
+        .and(warp::path!("api" / "2" / "sync-devices" / ..))
+        .and(warp::path::param::<String>())
+        .and(warp::path::tail())
         .and(auth_filter.clone())
         .and(state_filter.clone())
         .and(warp::body::json())
         .and_then(
-            |username: String, auth: AuthContext, state, request| async move {
-                let auth = authorize(auth, &username)?;
+            |username: String, tail, auth: AuthContext, state, request| async move {
+                validate_unit_tail(tail).await?;
+                let auth = authorize(auth, strip_json_ext(&username))?;
                 device_sync::update_sync_groups(auth, state, request).await
             },
         );

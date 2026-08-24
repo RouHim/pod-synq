@@ -110,19 +110,45 @@ pub struct EpisodeActionsResult {
     pub timestamp: i64,
 }
 
+/// Deserializes a gPodder timestamp from either an ISO 8601 string or a Unix
+/// epoch integer into seconds since the epoch.
+fn deserialize_flexible_timestamp<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use chrono::{NaiveDateTime, Utc};
+    use serde::de::Error;
+    use serde_json::Value;
+
+    match Value::deserialize(deserializer)? {
+        Value::Number(n) => n
+            .as_i64()
+            .ok_or_else(|| D::Error::custom("invalid timestamp")),
+        Value::String(s) => NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S")
+            .map(|dt| dt.and_utc().timestamp())
+            .or_else(|_| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .map(|dt| dt.with_timezone(&Utc).timestamp())
+            })
+            .map_err(|e| D::Error::custom(format!("invalid timestamp: {e}"))),
+        _ => Err(D::Error::custom("timestamp must be a string or integer")),
+    }
+}
+
 /// Request body for uploading episode actions
 #[derive(Debug, Deserialize)]
 pub struct EpisodeActionUpload {
     pub podcast: String,
     pub episode: String,
+    #[serde(default)]
     pub device: String,
     pub action: String,
+    #[serde(deserialize_with = "deserialize_flexible_timestamp")]
     pub timestamp: i64,
     pub started: Option<i64>,
     pub position: Option<i64>,
     pub total: Option<i64>,
 }
-
 // ============================================================================
 // Settings DTOs
 // ============================================================================

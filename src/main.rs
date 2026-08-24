@@ -87,12 +87,7 @@ async fn run_migrations(pool: &SqlitePool) -> anyhow::Result<()> {
 
     for (i, migration_sql) in migrations.iter().enumerate() {
         tracing::info!("Running migration {}", i + 1);
-        for statement in migration_sql.split(';') {
-            let statement = statement.trim();
-            if !statement.is_empty() {
-                sqlx::query(statement).execute(pool).await?;
-            }
-        }
+        sqlx::raw_sql(migration_sql).execute(pool).await?;
     }
 
     tracing::info!("Database migrations completed successfully");

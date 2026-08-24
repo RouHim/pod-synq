@@ -73,10 +73,15 @@ pub async fn upload_episode_actions(
             all_update_urls.push([action.episode.clone(), sanitized_episode.clone()]);
         }
 
-        // Get or create device
+        // Get or create device; actions may omit the device field
+        let device_name = if action.device.is_empty() {
+            "unknown"
+        } else {
+            &action.device
+        };
         let device_db_id = state
             .device_service
-            .get_or_create_device(auth.user_id, &action.device, None, None)
+            .get_or_create_device(auth.user_id, device_name, None, None)
             .await
             .map_err(|e| warp::reject::custom(AppError::Internal(e.to_string())))?;
 
@@ -103,5 +108,6 @@ pub async fn upload_episode_actions(
 
     Ok(json(&serde_json::json!({
         "update_urls": all_update_urls,
+        "timestamp": crate::utils::unix_timestamp(),
     })))
 }
