@@ -129,7 +129,7 @@ impl DeviceSyncService {
             };
 
             // Merge other groups into the target group
-            for (&group_id, _) in existing_groups.iter() {
+            for &group_id in existing_groups.keys() {
                 if group_id != target_group_id {
                     self.device_sync_repo
                         .merge_groups(target_group_id, group_id)
