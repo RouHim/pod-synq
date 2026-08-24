@@ -97,3 +97,50 @@ impl UserService {
         Ok(false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_password_returns_phc_format_string_starting_with_argon2id() {
+        let hash = UserService::hash_password("correct horse battery staple").unwrap();
+
+        assert!(
+            hash.starts_with("$argon2id$"),
+            "expected PHC-format argon2id hash, got: {hash}"
+        );
+    }
+
+    #[test]
+    fn test_hash_password_produces_different_hashes_for_same_input_due_to_random_salt() {
+        let first = UserService::hash_password("same password").unwrap();
+        let second = UserService::hash_password("same password").unwrap();
+
+        assert_ne!(first, second);
+    }
+
+    #[tokio::test]
+    async fn test_verify_password_accepts_correct_password() {
+        let pool = sqlx::sqlite::SqlitePool::connect("sqlite::memory:")
+            .await
+            .expect("in-memory sqlite pool should connect");
+        let service = UserService::new(UserRepository::new(pool));
+
+        let hash = UserService::hash_password("s3cret-passw0rd").unwrap();
+
+        assert!(service.verify_password(&hash, "s3cret-passw0rd").is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_verify_password_rejects_wrong_password() {
+        let pool = sqlx::sqlite::SqlitePool::connect("sqlite::memory:")
+            .await
+            .expect("in-memory sqlite pool should connect");
+        let service = UserService::new(UserRepository::new(pool));
+
+        let hash = UserService::hash_password("s3cret-passw0rd").unwrap();
+
+        assert!(service.verify_password(&hash, "wrong-password").is_err());
+    }
+}
