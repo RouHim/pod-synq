@@ -13,11 +13,7 @@ use crate::models::PodcastMetadata;
 
 /// Request body for logout endpoint
 #[derive(Debug, Deserialize)]
-pub struct LogoutRequest {
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub session_id: Option<String>,
-}
+pub struct LogoutRequest {}
 
 // ============================================================================
 // Client Config DTOs
